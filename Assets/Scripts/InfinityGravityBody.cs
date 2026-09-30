@@ -1,112 +1,78 @@
+using System.Collections.Generic;
 using UnityEngine;
-using StarterAssets;
 
+[DefaultExecutionOrder(-110)]
 [DisallowMultipleComponent]
 public class InfinityGravityBody : MonoBehaviour
 {
-    [Header("Gravity")]
     public Vector3 defaultGravityDirection = Vector3.down;
-    public float defaultGravityStrength = 28f;
+    public float defaultGravityStrength = 22f;
     public bool alignToGravity = true;
     public float defaultAlignmentSpeed = 8f;
-
-    private CharacterController characterController;
-    private ThirdPersonController starterController;
+    private readonly HashSet<InfiniteCastleGrid> zones = new();
     private Rigidbody body;
-    private Vector3 activeGravityDirection;
-    private float activeGravityStrength;
-    private bool activeAlignment;
-    private float activeAlignmentSpeed;
-    private Vector3 velocity;
+    private bool originalUseGravity;
+    private bool hasManualGravity;
+    private Vector3 manualDirection;
+    private float manualStrength;
+    private InfiniteCastleGrid selectedZone;
+    public Vector3 Direction { get; private set; } = Vector3.down;
+    public float Strength { get; private set; } = 22f;
+    public Vector3 Up => -Direction;
+    public float AlignmentSpeed { get; private set; } = 8f;
 
     private void Awake()
     {
-        characterController = GetComponent<CharacterController>();
-        starterController = GetComponent<ThirdPersonController>();
         body = GetComponent<Rigidbody>();
-        RestoreDefaultGravity();
+        if (body != null) { originalUseGravity = body.useGravity; body.useGravity = false; }
+        ResolveGravity();
     }
-
+    private void Update() => ResolveGravity();
+    private void OnEnable()
+    {
+        if (body != null) body.useGravity = false;
+        ResolveGravity();
+    }
     private void FixedUpdate()
     {
-        if (body != null && characterController == null)
-            body.AddForce(activeGravityDirection * activeGravityStrength, ForceMode.Acceleration);
+        if (body != null && !body.isKinematic) body.AddForce(Direction * Strength, ForceMode.Acceleration);
     }
-
-    private void Update()
-    {
-        if (characterController != null)
-            MoveCharacterWithCustomGravity();
-
-        if (activeAlignment)
-            AlignTransformToGravity();
-    }
-
+    public void EnterZone(InfiniteCastleGrid zone) { zones.Add(zone); ResolveGravity(); }
+    public void LeaveZone(InfiniteCastleGrid zone) { zones.Remove(zone); ResolveGravity(); }
     public void SetGravity(Vector3 direction, float strength, bool shouldAlign, float alignmentSpeed)
     {
-        if (direction.sqrMagnitude < 0.01f)
-            direction = defaultGravityDirection;
-
-        activeGravityDirection = direction.normalized;
-        activeGravityStrength = Mathf.Max(0f, strength);
-        activeAlignment = shouldAlign;
-        activeAlignmentSpeed = Mathf.Max(0.1f, alignmentSpeed);
-        velocity = Vector3.zero;
-
-        if (starterController != null)
+        hasManualGravity = true;
+        manualDirection = direction;
+        manualStrength = strength;
+        AlignmentSpeed = alignmentSpeed;
+        ResolveGravity();
+    }
+    public void RestoreDefaultGravity() { hasManualGravity = false; ResolveGravity(); }
+    public void ResolveGravity()
+    {
+        InfiniteCastleGrid best = null;
+        float nearest = float.PositiveInfinity;
+        foreach (InfiniteCastleGrid zone in zones)
         {
-            starterController.UseExternalGravity = true;
-            starterController.ExternalGravityDirection = activeGravityDirection;
+            if (zone == null || !zone.isActiveAndEnabled || !zone.Contains(transform.position)) continue;
+            float distance = (zone.SurfacePoint - transform.position).sqrMagnitude;
+            if (best == null || zone.priority > best.priority || (zone.priority == best.priority && distance < nearest - 0.25f))
+            { best = zone; nearest = distance; }
         }
+        // Keep the current zone on ties instead of flickering between overlapping triggers.
+        if (selectedZone != null && selectedZone.isActiveAndEnabled && selectedZone.Contains(transform.position) &&
+            best != null && best.priority == selectedZone.priority &&
+            (selectedZone.SurfacePoint - transform.position).sqrMagnitude <= nearest + 0.25f) best = selectedZone;
+        selectedZone = best;
+        Vector3 direction = best != null ? best.gravityDirection : hasManualGravity ? manualDirection : defaultGravityDirection;
+        Direction = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector3.down;
+        Strength = Mathf.Max(0.1f, best != null ? best.gravityStrength : hasManualGravity ? manualStrength : defaultGravityStrength);
+        if (best != null) AlignmentSpeed = best.alignmentSpeed;
+        else if (!hasManualGravity) AlignmentSpeed = defaultAlignmentSpeed;
     }
-
-    public void RestoreDefaultGravity()
+    private void OnDisable()
     {
-        activeGravityDirection = defaultGravityDirection.sqrMagnitude > 0.01f ? defaultGravityDirection.normalized : Vector3.down;
-        activeGravityStrength = defaultGravityStrength;
-        activeAlignment = alignToGravity;
-        activeAlignmentSpeed = defaultAlignmentSpeed;
-        velocity = Vector3.zero;
-
-        if (starterController != null)
-        {
-            starterController.UseExternalGravity = false;
-            starterController.ExternalGravityDirection = activeGravityDirection;
-        }
-    }
-
-    private void MoveCharacterWithCustomGravity()
-    {
-        Vector3 localDown = activeGravityDirection.normalized;
-        bool groundedAlongGravity = IsGroundedAlongGravity(localDown);
-
-        if (groundedAlongGravity && Vector3.Dot(velocity, localDown) > 0f)
-            velocity = localDown * 2f;
-
-        velocity += localDown * activeGravityStrength * Time.deltaTime;
-        characterController.Move(velocity * Time.deltaTime);
-    }
-
-    private bool IsGroundedAlongGravity(Vector3 localDown)
-    {
-        Vector3 center = transform.TransformPoint(characterController.center);
-        float checkDistance = Mathf.Max(0.05f, characterController.height * 0.5f - characterController.radius + 0.08f);
-        Vector3 checkPosition = center + localDown * checkDistance;
-
-        return Physics.CheckSphere(
-            checkPosition,
-            characterController.radius * 0.95f,
-            ~0,
-            QueryTriggerInteraction.Ignore);
-    }
-
-    private void AlignTransformToGravity()
-    {
-        Vector3 up = -activeGravityDirection.normalized;
-        if (up.sqrMagnitude < 0.01f)
-            return;
-
-        Quaternion targetRotation = Quaternion.FromToRotation(transform.up, up) * transform.rotation;
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * activeAlignmentSpeed);
+        zones.Clear(); selectedZone = null;
+        if (body != null) body.useGravity = originalUseGravity;
     }
 }

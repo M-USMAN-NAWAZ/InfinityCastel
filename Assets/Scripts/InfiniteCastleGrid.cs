@@ -1,90 +1,60 @@
+using System.Collections.Generic;
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class InfiniteCastleGrid : MonoBehaviour
 {
-    [Header("Gravity Zone")]
     public Vector3 gravityDirection = Vector3.down;
-    public float gravityStrength = 28f;
+    public float gravityStrength = 22f;
     public bool alignPlayerToGravity = true;
     public float alignmentSpeed = 8f;
-
-    private Collider zoneCollider;
-
+    public int priority;
+    private BoxCollider trigger;
+    private readonly Dictionary<InfinityGravityBody, HashSet<Collider>> occupants = new();
+    public Vector3 SurfacePoint => transform.position;
     private void Awake()
     {
-        zoneCollider = FindTriggerCollider();
-        if (zoneCollider == null)
-            zoneCollider = CreateGravityTrigger();
-
-        zoneCollider.isTrigger = true;
+        foreach (BoxCollider box in GetComponents<BoxCollider>())
+            if (box.isTrigger) { trigger = box; break; }
+        if (trigger == null) trigger = gameObject.AddComponent<BoxCollider>();
+        trigger.isTrigger = true;
     }
-
-    private void OnTriggerEnter(Collider other)
+    public void Configure(Vector3 down, Vector3 centre, Vector3 size, int zonePriority = 0)
     {
-        ApplyGravity(other);
+        if (trigger == null) Awake();
+        gravityDirection = down.normalized;
+        trigger.center = centre; trigger.size = size; priority = zonePriority;
     }
-
-    private void OnTriggerStay(Collider other)
+    public bool Contains(Vector3 point)
     {
-        ApplyGravity(other);
+        if (trigger == null || !trigger.enabled) return false;
+        Vector3 local = transform.InverseTransformPoint(point) - trigger.center;
+        Vector3 half = trigger.size * 0.5f + Vector3.one * 0.05f;
+        return Mathf.Abs(local.x) <= half.x && Mathf.Abs(local.y) <= half.y && Mathf.Abs(local.z) <= half.z;
     }
-
+    private void OnTriggerEnter(Collider other) => Register(other);
+    private void OnTriggerStay(Collider other) => Register(other);
+    private void Register(Collider other)
+    {
+        InfinityGravityBody gravity = other.GetComponentInParent<InfinityGravityBody>();
+        if (gravity == null) return;
+        if (!occupants.TryGetValue(gravity, out HashSet<Collider> colliders))
+        { colliders = new HashSet<Collider>(); occupants.Add(gravity, colliders); }
+        colliders.Add(other); gravity.EnterZone(this);
+    }
     private void OnTriggerExit(Collider other)
     {
-        InfinityGravityBody gravityBody = other.GetComponentInParent<InfinityGravityBody>();
-        if (gravityBody != null)
-            gravityBody.RestoreDefaultGravity();
+        InfinityGravityBody gravity = other.GetComponentInParent<InfinityGravityBody>();
+        if (gravity == null) return;
+        if (!occupants.TryGetValue(gravity, out HashSet<Collider> colliders)) return;
+        colliders.Remove(other); if (colliders.Count > 0) return;
+        occupants.Remove(gravity); gravity.LeaveZone(this);
     }
-
-    private void ApplyGravity(Collider other)
+    private void OnDisable()
     {
-        InfinityGravityBody gravityBody = other.GetComponentInParent<InfinityGravityBody>();
-        if (gravityBody == null)
-            return;
-
-        gravityBody.SetGravity(gravityDirection, gravityStrength, alignPlayerToGravity, alignmentSpeed);
+        foreach (InfinityGravityBody gravity in occupants.Keys) if (gravity != null) gravity.LeaveZone(this);
+        occupants.Clear();
+        if (trigger != null) trigger.enabled = false;
     }
-
-    private Collider FindTriggerCollider()
-    {
-        Collider[] colliders = GetComponents<Collider>();
-        foreach (Collider candidate in colliders)
-        {
-            if (candidate.isTrigger)
-                return candidate;
-        }
-
-        return null;
-    }
-
-    private Collider CreateGravityTrigger()
-    {
-        BoxCollider trigger = gameObject.AddComponent<BoxCollider>();
-        Bounds bounds = CalculateRendererBounds();
-        Vector3 localSize = transform.InverseTransformVector(bounds.size + Vector3.one * 4f);
-
-        trigger.center = transform.InverseTransformPoint(bounds.center);
-        trigger.size = new Vector3(Mathf.Abs(localSize.x), Mathf.Abs(localSize.y), Mathf.Abs(localSize.z));
-        return trigger;
-    }
-
-    private Bounds CalculateRendererBounds()
-    {
-        Renderer[] renderers = GetComponentsInChildren<Renderer>();
-        if (renderers.Length == 0)
-            return new Bounds(transform.position, Vector3.one * 10f);
-
-        Bounds bounds = renderers[0].bounds;
-        for (int i = 1; i < renderers.Length; i++)
-            bounds.Encapsulate(renderers[i].bounds);
-
-        return bounds;
-    }
-
-    private void OnDrawGizmosSelected()
-    {
-        Vector3 direction = gravityDirection.sqrMagnitude > 0.01f ? gravityDirection.normalized : Vector3.down;
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawRay(transform.position, direction * 4f);
-    }
+    private void OnEnable() { if (trigger != null) trigger.enabled = true; }
 }

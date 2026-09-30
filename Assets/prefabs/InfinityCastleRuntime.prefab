@@ -52,9 +52,60 @@ MonoBehaviour:
   buildingPrefabs:
   - {fileID: 9100312691936151657, guid: 57b58cb809acd574e9decc5f87757f86, type: 3}
   - {fileID: 1451599105574082075, guid: 808e18243c9a5794dbc260d3318eb2b5, type: 3}
-  - {fileID: 2662463070651916922, guid: 565417813f355794485d6eb4efa7d114, type: 3}
+  - {fileID: 634896325214521585, guid: fc6a3d77dad2de54e8b172cb9530e5ba, type: 3}
+  - {fileID: 3898410623604160397, guid: 44b6b8b0c617ec646a4cd25fad185817, type: 3}
+  - {fileID: 2736104367488340503, guid: 9356b01f860475341842c95bc5f49a68, type: 3}
+  - {fileID: 8128418724896207906, guid: 038ab5c0bf5086a4f8573b73c2aa634a, type: 3}
+  - {fileID: 4533513718277074380, guid: 6d66ffa2d44ff524fac1309cbd9e3e39, type: 3}
+  - {fileID: 7337061573449985438, guid: 8ef7f8ff35403cf438903dcf63c2215b, type: 3}
+  - {fileID: 7609757558275495975, guid: d8ff1743620d61a4083ab120ffa2b4ae, type: 3}
   pathPrefabs:
-  - {fileID: 8387715021252839913, guid: ee0950d8ec373af4eac83912a95d1972, type: 3}
+  - {fileID: 2662463070651916922, guid: 565417813f355794485d6eb4efa7d114, type: 3}
+  - {fileID: 7863885210709501294, guid: f5169ea3aa233cb40895e921a8ba946a, type: 3}
+  landingPrefab: {fileID: 100100, guid: 8dc13c4657124f88bedbd636b0a97e12, type: 3}
+  deckMaterial: {fileID: 2100000, guid: 76833fdd21516954d8e0b28cbd9ab708, type: 2}
+  architectureShader: {fileID: 4800000, guid: 2123dcaff2f346ad9d8232b8098730ad, type: 3}
+  architectureFinishes:
+  - source: {fileID: 2100000, guid: 2781c94b998971f4fb2b48afea4fa5f1, type: 2}
+    albedo: {fileID: 2800000, guid: acbce50b1eb31484e985f9158bf1ff4d, type: 3}
+    tint: {r: 0.48, g: 0.30, b: 0.20, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 7af4733ae76f1cd46979068d9862ac6a, type: 2}
+    albedo: {fileID: 2800000, guid: 24c45467603c3b04a9b803486d195a89, type: 3}
+    tint: {r: 0.36, g: 0.23, b: 0.17, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 53973f066005db04c8206093fd375b26, type: 2}
+    albedo: {fileID: 2800000, guid: 4f4ba2c8797be834198c7d32ed9c39ce, type: 3}
+    tint: {r: 0.93, g: 0.84, b: 0.68, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 3d62544c6a7c9f944ac3dc748a690e10, type: 2}
+    albedo: {fileID: 2800000, guid: c7c155821175d82489656fa2427274de, type: 3}
+    tint: {r: 1, g: 0.95, b: 0.80, a: 1}
+    glow: 0.75
+  - source: {fileID: 2100000, guid: 2cf220138a6aff74ab87d59ab5e633fb, type: 2}
+    albedo: {fileID: 2800000, guid: 96edb6f9e6b9f7b409420c2e42f872dc, type: 3}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 01ba67575f31e1c488a7d96bbbe6ed25, type: 2}
+    albedo: {fileID: 2800000, guid: 54650b8b40a3aaa42bb145087174e57f, type: 3}
+    tint: {r: 0.76, g: 0.70, b: 0.59, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 4507e71ce3b2ce344806d2af8ff401b9, type: 2}
+    albedo: {fileID: 2800000, guid: 77d9ad4a9bfe8ce4bafcd30d43ef9d82, type: 3}
+    tint: {r: 0.92, g: 0.84, b: 0.69, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 0c2d4ae877a860b4399a8999b15b373f, type: 2}
+    albedo: {fileID: 2800000, guid: 652d207a86d80f04092040185ba32315, type: 3}
+    tint: {r: 0.87, g: 0.77, b: 0.64, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: f4519dde5a5ce0846be3bfa71be97e76, type: 2}
+    albedo: {fileID: 2800000, guid: 24c45467603c3b04a9b803486d195a89, type: 3}
+    tint: {r: 0.38, g: 0.25, b: 0.17, a: 1}
+    glow: 0
+  - source: {fileID: 2100000, guid: 76833fdd21516954d8e0b28cbd9ab708, type: 2}
+    albedo: {fileID: 2800000, guid: 10a5c5d6d8481da4f9c401791edac2c9, type: 3}
+    tint: {r: 0.70, g: 0.55, b: 0.40, a: 1}
+    glow: 0
   layersInEveryDirection: 4
   cellSize: 18
   verticalLayerSpacing: 7
@@ -63,14 +114,20 @@ MonoBehaviour:
   randomSeed: 9217
   keepFloorUnderPlayer: 1
   floorHeightBelowPlayer: 0.75
-  catchLayersBelow: 5
+  catchLayersBelow: 3
   catchRadius: 1
   stillPieceChance: 0.45
-  maxMotionRadius: 1.1
-  motionSpeedRange: {x: 0.03, y: 0.1}
-  oneWayExitDuration: 1.35
+  maxMotionRadius: 6
+  motionSpeedRange: {x: 1.2, y: 2.5}
+  oneWayExitDuration: 4
+  simultaneousShifts: 6
+  shiftInterval: 1.5
+  balconyWidth: 4
+  playableFloorsBelow: 2
+  decorationDensity: 0.48
+  castleLighting: 1
   enableGravityZones: 1
-  gravityZoneChance: 1
+  gravityZoneChance: 0.25
 --- !u!1 &1000000000000000004
 GameObject:
   m_ObjectHideFlags: 0
