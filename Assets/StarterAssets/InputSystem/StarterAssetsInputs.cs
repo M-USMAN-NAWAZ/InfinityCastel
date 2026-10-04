@@ -15,6 +15,7 @@ namespace StarterAssets
 
 		[Header("Movement Settings")]
 		public bool analogMovement;
+		[HideInInspector] public bool touchLook;
 
 		[Header("Mouse Cursor Settings")]
 		public bool cursorLocked = true;

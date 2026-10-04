@@ -19,6 +19,7 @@ public class UIVirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandle
 
     [Header("Output")]
     public Event joystickOutputEvent;
+    private int? activePointer;
 
     void Start()
     {
@@ -35,11 +36,14 @@ public class UIVirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandle
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (activePointer.HasValue) return;
+        activePointer = eventData.pointerId;
         OnDrag(eventData);
     }
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (activePointer != eventData.pointerId || containerRect == null) return;
 
         RectTransformUtility.ScreenPointToLocalPointInRectangle(containerRect, eventData.position, eventData.pressEventCamera, out Vector2 position);
         
@@ -47,7 +51,7 @@ public class UIVirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandle
         
         Vector2 clampedPosition = ClampValuesToMagnitude(position);
 
-        Vector2 outputPosition = ApplyInversionFilter(position);
+        Vector2 outputPosition = ApplyInversionFilter(clampedPosition);
 
         OutputPointerEventValue(outputPosition * magnitudeMultiplier);
 
@@ -60,6 +64,8 @@ public class UIVirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandle
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if (activePointer != eventData.pointerId) return;
+        activePointer = null;
         OutputPointerEventValue(Vector2.zero);
 
         if(handleRect)
@@ -70,8 +76,10 @@ public class UIVirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandle
 
     private void OutputPointerEventValue(Vector2 pointerPosition)
     {
-        joystickOutputEvent.Invoke(pointerPosition);
+        joystickOutputEvent?.Invoke(pointerPosition);
     }
+    public void ResetInput() { activePointer = null; OutputPointerEventValue(Vector2.zero); SetupHandle(); }
+    private void OnDisable() => ResetInput();
 
     private void UpdateHandleRectPosition(Vector2 newPosition)
     {
@@ -80,8 +88,8 @@ public class UIVirtualJoystick : MonoBehaviour, IPointerDownHandler, IDragHandle
 
     Vector2 ApplySizeDelta(Vector2 position)
     {
-        float x = (position.x/containerRect.sizeDelta.x) * 2.5f;
-        float y = (position.y/containerRect.sizeDelta.y) * 2.5f;
+        float x = (position.x/Mathf.Max(1f, containerRect.rect.width)) * 2.5f;
+        float y = (position.y/Mathf.Max(1f, containerRect.rect.height)) * 2.5f;
         return new Vector2(x, y);
     }
 

@@ -9,9 +9,20 @@ public class InfiniteCastleGrid : MonoBehaviour
     public bool alignPlayerToGravity = true;
     public float alignmentSpeed = 8f;
     public int priority;
+    public bool surfaceBound;
+    public bool cornerTransition;
     private BoxCollider trigger;
     private readonly Dictionary<InfinityGravityBody, HashSet<Collider>> occupants = new();
     public Vector3 SurfacePoint => transform.position;
+    public float DistanceToSurface(Vector3 point)
+    {
+        if (trigger == null) return float.PositiveInfinity;
+        Vector3 local = transform.InverseTransformPoint(point);
+        Vector3 edge = trigger.size * 0.5f;
+        Vector3 nearest = new(Mathf.Clamp(local.x, trigger.center.x - edge.x, trigger.center.x + edge.x),
+            0f, Mathf.Clamp(local.z, trigger.center.z - edge.z, trigger.center.z + edge.z));
+        return Vector3.Distance(point, transform.TransformPoint(nearest));
+    }
     private void Awake()
     {
         foreach (BoxCollider box in GetComponents<BoxCollider>())
@@ -19,11 +30,11 @@ public class InfiniteCastleGrid : MonoBehaviour
         if (trigger == null) trigger = gameObject.AddComponent<BoxCollider>();
         trigger.isTrigger = true;
     }
-    public void Configure(Vector3 down, Vector3 centre, Vector3 size, int zonePriority = 0)
+    public void Configure(Vector3 down, Vector3 centre, Vector3 size, int zonePriority = 0, bool onSurface = false, bool atCorner = false)
     {
         if (trigger == null) Awake();
         gravityDirection = down.normalized;
-        trigger.center = centre; trigger.size = size; priority = zonePriority;
+        trigger.center = centre; trigger.size = size; priority = zonePriority; surfaceBound = onSurface; cornerTransition = atCorner;
     }
     public bool Contains(Vector3 point)
     {

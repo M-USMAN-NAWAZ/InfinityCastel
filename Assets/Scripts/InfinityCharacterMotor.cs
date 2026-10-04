@@ -14,6 +14,7 @@ public sealed class InfinityCharacterMotor : MonoBehaviour
     public Vector3 Velocity { get; private set; }
     public RaycastHit GroundHit { get; private set; }
     public bool HitCeiling { get; private set; }
+    public Collider CeilingCollider { get; private set; }
     private int stepFailure;
     private Collider stepBlocker;
     public string LastStepBlock => stepFailure == 0 ? "clear" :
@@ -47,7 +48,15 @@ public sealed class InfinityCharacterMotor : MonoBehaviour
         nearest = default;
         float closest = float.PositiveInfinity;
         for (int i = 0; i < count; i++)
-            if (IsObstacle(hits[i].collider) && hits[i].distance < closest) { closest = hits[i].distance; nearest = hits[i]; }
+        {
+            Collider collider = hits[i].collider;
+            if (!IsObstacle(collider) || hits[i].distance >= closest) continue;
+            // Concave meshes can report a synthetic initial-overlap hit even when there is no resolvable surface contact.
+            if (hits[i].distance <= 0.00001f && collider is MeshCollider mesh && !mesh.convex &&
+                !Physics.ComputePenetration(capsule, position, transform.rotation, collider, collider.transform.position,
+                    collider.transform.rotation, out _, out _)) continue;
+            closest = hits[i].distance; nearest = hits[i];
+        }
         return closest < float.PositiveInfinity;
     }
     public bool CheckGround(Vector3 up, LayerMask mask)
@@ -72,10 +81,25 @@ public sealed class InfinityCharacterMotor : MonoBehaviour
         return support.TransformPoint(supportPoint) - transform.position;
     }
     public void ClearSupport() { support = null; GroundHit = default; }
+    public void AlignToGravity(Quaternion rotation, InfiniteCastleGrid surface = null)
+    {
+        // Turn around the capsule centre, not its feet, so a floor-to-wall turn does not bury it in the floor.
+        Vector3 middle = transform.position + transform.rotation * centre;
+        transform.rotation = rotation;
+        transform.position = middle - rotation * centre;
+        if (surface != null && surface.cornerTransition)
+        {
+            // A convex turn pivots onto the next face rather than leaving the feet behind its collider.
+            float gap = Vector3.Dot(transform.position - surface.SurfacePoint, transform.up);
+            if (gap < skin && gap > -height) transform.position += transform.up * (skin - gap);
+        }
+        ClearSupport();
+    }
     public void Move(Vector3 displacement, Vector3 up, bool allowStep, float deltaTime)
     {
         Vector3 start = transform.position, position = start;
         HitCeiling = false;
+        CeilingCollider = null;
         int steps = Mathf.Clamp(Mathf.CeilToInt(displacement.magnitude / Mathf.Max(0.1f, radius)), 1, 32);
         Vector3 step = displacement / steps;
         for (int n = 0; n < steps; n++)
@@ -88,7 +112,7 @@ public sealed class InfinityCharacterMotor : MonoBehaviour
                 position += remaining.normalized * travel;
                 remaining -= remaining.normalized * travel;
                 float normalUp = Vector3.Dot(hit.normal, up);
-                if (normalUp < -0.5f) HitCeiling = true;
+                if (normalUp < -0.5f) { HitCeiling = true; CeilingCollider = hit.collider; }
                 if (allowStep && normalUp < 0.99f && TryStep(ref position, Vector3.ProjectOnPlane(remaining, up), up)) break;
                 remaining = Vector3.ProjectOnPlane(remaining, hit.normal);
             }

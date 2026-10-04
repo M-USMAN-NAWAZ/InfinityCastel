@@ -118,14 +118,41 @@ MonoBehaviour:
   catchRadius: 1
   stillPieceChance: 0.45
   maxMotionRadius: 6
+  nearbyShiftTravel: 12
+  rideMovingBuildings: 1
   motionSpeedRange: {x: 1.2, y: 2.5}
   oneWayExitDuration: 4
   simultaneousShifts: 6
   shiftInterval: 1.5
   balconyWidth: 4
-  playableFloorsBelow: 2
+  playableFloorsBelow: 3
+  playableFloorsAbove: 1
   decorationDensity: 0.48
   castleLighting: 1
+  randomNearbyCastle: 1
+  nearbyPoolSize: 128
+  jumpGap: 1.4
+  periodicRebuilding: 1
+  rebuildInterval: {x: 25, y: 40}
+  rebuildMoveSeconds: 6
+  rebuildTravel: 18
+  mobileBudget: 1
+  mobileDecorationPrefabs:
+  - {fileID: 1466369838106049192, guid: 7a5e474c183009e409f802b3cca3e465, type: 3}
+  - {fileID: 8271136481441824093, guid: dc1c01d22914b154fa9bd7a21cd3afec, type: 3}
+  - {fileID: 2876907107876292073, guid: fdc4b46b1d72d874fbfcd83470634f00, type: 3}
+  - {fileID: 4898048824262027563, guid: 09a49a13be1311e4bbf2875c05410951, type: 3}
+  - {fileID: 9189507838996846827, guid: 90a7af8c921486146a1cdfb0c0e6903a, type: 3}
+  - {fileID: 5150410420849743400, guid: bcf173876320eb446bf3601c38ff51d7, type: 3}
+  - {fileID: 326470555214474620, guid: 9d195379676b73441b957169ee80511f, type: 3}
+  - {fileID: 60424421214812343, guid: 816ee449f0904554dbc4940b597852dd, type: 3}
+  - {fileID: 2006308052483860858, guid: 0aef8e3638bdbc748a0bab048b5ab22b, type: 3}
+  mobileControlsPrefab: {fileID: 6751388636123340836, guid: 2f7f3dde7ae722a4aafffe20691ad702, type: 3}
+  mobileRenderPipeline: {fileID: 11400000, guid: 5e6cbd92db86f4b18aec3ed561671858, type: 2}
+  previewTouchControls: 0
+  decorationPoolSize: 144
+  layoutStepsPerFrame: 2
+  layoutMillisecondsPerFrame: 2
   enableGravityZones: 1
   gravityZoneChance: 0.25
 --- !u!1 &1000000000000000004

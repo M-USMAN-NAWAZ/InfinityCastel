@@ -12,14 +12,19 @@ public class UIVirtualButton : MonoBehaviour, IPointerDownHandler, IPointerUpHan
     [Header("Output")]
     public BoolEvent buttonStateOutputEvent;
     public Event buttonClickOutputEvent;
+    private int? activePointer;
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (activePointer.HasValue) return;
+        activePointer = eventData.pointerId;
         OutputButtonStateValue(true);
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if (activePointer != eventData.pointerId) return;
+        activePointer = null;
         OutputButtonStateValue(false);
     }
     
@@ -30,12 +35,14 @@ public class UIVirtualButton : MonoBehaviour, IPointerDownHandler, IPointerUpHan
 
     void OutputButtonStateValue(bool buttonState)
     {
-        buttonStateOutputEvent.Invoke(buttonState);
+        buttonStateOutputEvent?.Invoke(buttonState);
     }
 
     void OutputButtonClickEvent()
     {
-        buttonClickOutputEvent.Invoke();
+        buttonClickOutputEvent?.Invoke();
     }
+    public void ResetInput() { activePointer = null; OutputButtonStateValue(false); }
+    private void OnDisable() => ResetInput();
 
 }

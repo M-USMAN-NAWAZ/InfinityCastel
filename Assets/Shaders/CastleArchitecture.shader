@@ -5,7 +5,6 @@ Shader "Infinity Castle/Architecture"
         _BaseMap ("Albedo", 2D) = "white" {}
         _BaseColor ("Tint", Color) = (1,1,1,1)
         _Glow ("Window Glow", Range(0,2)) = 0
-        _CastleVisibility ("Assembly", Range(0,1)) = 1
     }
     SubShader
     {
@@ -28,7 +27,6 @@ Shader "Infinity Castle/Architecture"
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
-                float _CastleVisibility;
                 half _Glow;
             CBUFFER_END
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
@@ -45,8 +43,6 @@ Shader "Infinity Castle/Architecture"
             }
             half4 Frag(Varyings input) : SV_Target
             {
-                float noise = frac(52.9829189 * frac(dot(floor(input.positionCS.xy), float2(0.06711056, 0.00583715))));
-                clip(_CastleVisibility <= 0 ? -1 : _CastleVisibility - noise);
                 half3 normal = normalize(input.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half3 lighting = half3(0.24,0.19,0.16) + max(SampleSH(normal), 0) * 0.2;
