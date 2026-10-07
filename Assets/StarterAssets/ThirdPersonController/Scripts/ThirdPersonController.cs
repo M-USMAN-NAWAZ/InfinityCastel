@@ -37,6 +37,7 @@ namespace StarterAssets
         public float BottomClamp = -40f;
         public float CameraAngleOverride;
         public bool LockCameraPosition;
+        [Min(0.05f)] public float GravityCameraTransitionDuration = 0.9f;
         [Header("Jump Forgiveness")]
         public float CoyoteTime = 0.12f;
         public float JumpBuffer = 0.15f;
@@ -49,6 +50,10 @@ namespace StarterAssets
         private CinemachineBrain brain;
         private Vector3 cameraForward = Vector3.forward;
         private Vector3 lastUp = Vector3.up;
+        private Vector3 cameraTargetOffset, cameraPivotCorrection;
+        private Quaternion cameraGravityOffset = Quaternion.identity;
+        private Quaternion cameraGravityFrom = Quaternion.identity;
+        private float cameraTransitionElapsed;
         private float pitch, speed, verticalSpeed, groundedTime, jumpBufferTime, jumpCooldown, airborneTime;
         private bool jumping, initialized, alignmentReady;
 #if ENABLE_INPUT_SYSTEM
@@ -85,7 +90,12 @@ namespace StarterAssets
                 movementAudio.playOnAwake = false; movementAudio.spatialBlend = 1f;
             }
             cameraTransform = Camera.main != null ? Camera.main.transform : null;
-            if (CinemachineCameraTarget != null) cameraForward = CinemachineCameraTarget.transform.forward;
+            if (CinemachineCameraTarget != null)
+            {
+                cameraForward = CinemachineCameraTarget.transform.forward;
+                cameraTargetOffset = transform.InverseTransformPoint(CinemachineCameraTarget.transform.position);
+            }
+            cameraTransitionElapsed = GravityCameraTransitionDuration;
             cameraForward = Vector3.ProjectOnPlane(cameraForward, Vector3.up).normalized;
             if (cameraForward.sqrMagnitude < 0.01f) cameraForward = Vector3.forward;
 #if ENABLE_INPUT_SYSTEM
@@ -115,10 +125,21 @@ namespace StarterAssets
             Vector3 forward = Vector3.ProjectOnPlane(transform.forward, targetUp);
             if (forward.sqrMagnitude < 0.01f) forward = Vector3.ProjectOnPlane(transform.right, targetUp);
             bool changingGravity = Vector3.Dot(lastUp, targetUp) < 0.999f;
+            bool animateCamera = changingGravity && alignmentReady && CinemachineCameraTarget != null;
+            Vector3 previousCameraPosition = animateCamera ? CinemachineCameraTarget.transform.position : Vector3.zero;
+            Quaternion previousCameraRotation = animateCamera ? CinemachineCameraTarget.transform.rotation : Quaternion.identity;
             if (changingGravity)
             {
+                Quaternion displayedBasis = cameraGravityOffset * Quaternion.LookRotation(cameraForward, lastUp);
                 cameraForward = Quaternion.FromToRotation(lastUp, targetUp) * cameraForward;
                 verticalSpeed = 0f; lastUp = targetUp;
+                if (animateCamera)
+                {
+                    // Cancel the instant gravity turn, then ease this correction away in the camera pass.
+                    cameraGravityFrom = displayedBasis * Quaternion.Inverse(Quaternion.LookRotation(cameraForward, lastUp));
+                    cameraGravityOffset = cameraGravityFrom;
+                    cameraTransitionElapsed = 0f;
+                }
             }
             Quaternion aligned = Quaternion.LookRotation(forward.normalized, targetUp);
             if (changingGravity && alignmentReady) motor.AlignToGravity(aligned, gravity != null ? gravity.CurrentZone : null);
@@ -154,6 +175,11 @@ namespace StarterAssets
             }
             motor.Move((direction * speed + targetUp * verticalSpeed) * dt + supportMotion, targetUp, Grounded, dt);
             if (motor.HitCeiling && verticalSpeed > 0f) verticalSpeed = 0f;
+            if (animateCamera)
+            {
+                cameraPivotCorrection = previousCameraPosition - transform.TransformPoint(cameraTargetOffset);
+                CinemachineCameraTarget.transform.SetPositionAndRotation(previousCameraPosition, previousCameraRotation);
+            }
             if (animator != null && animator.runtimeAnimatorController != null)
             {
                 animator.SetFloat(SpeedId, speed, 0.1f, dt); animator.SetFloat(MotionId, magnitude);
@@ -161,22 +187,28 @@ namespace StarterAssets
                 animator.SetBool(FallId, !Grounded && airborneTime > FallTimeout);
             }
         }
-        private void LateUpdate()
+        private void LateUpdate() => SimulateCamera(Time.deltaTime);
+        public void SimulateCamera(float dt)
         {
-            if (!initialized || CinemachineCameraTarget == null) return;
+            if (!initialized || CinemachineCameraTarget == null || dt <= 0f) return;
             bool mouse = false;
 #if ENABLE_INPUT_SYSTEM
             mouse = playerInput != null && playerInput.currentControlScheme == "KeyboardMouse";
 #endif
             if (!LockCameraPosition)
             {
-                float multiplier = mouse && !input.touchLook ? 1f : Time.deltaTime;
+                float multiplier = mouse && !input.touchLook ? 1f : dt;
                 cameraForward = Quaternion.AngleAxis(input.look.x * multiplier, lastUp) * cameraForward;
                 pitch = Mathf.Clamp(pitch + input.look.y * multiplier, BottomClamp, TopClamp);
             }
-            Quaternion basis = Quaternion.LookRotation(cameraForward, lastUp);
-            CinemachineCameraTarget.transform.rotation = basis * Quaternion.Euler(pitch + CameraAngleOverride, 0f, 0f);
-            if (cameraUp != null) cameraUp.rotation = Quaternion.Slerp(cameraUp.rotation, basis, 1f - Mathf.Exp(-Time.deltaTime * 8f));
+            float duration = Mathf.Max(0.05f, GravityCameraTransitionDuration);
+            cameraTransitionElapsed = Mathf.Min(duration, cameraTransitionElapsed + dt);
+            float blend = Mathf.SmoothStep(0f, 1f, cameraTransitionElapsed / duration);
+            cameraGravityOffset = Quaternion.Slerp(cameraGravityFrom, Quaternion.identity, blend);
+            Quaternion basis = cameraGravityOffset * Quaternion.LookRotation(cameraForward, lastUp);
+            Vector3 pivot = transform.TransformPoint(cameraTargetOffset) + Vector3.Lerp(cameraPivotCorrection, Vector3.zero, blend);
+            CinemachineCameraTarget.transform.SetPositionAndRotation(pivot, basis * Quaternion.Euler(pitch + CameraAngleOverride, 0f, 0f));
+            if (cameraUp != null) cameraUp.rotation = basis;
         }
         public void ResetFallVelocity()
         {

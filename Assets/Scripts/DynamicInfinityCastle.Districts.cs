@@ -103,10 +103,9 @@ public partial class DynamicInfinityCastle
                     Vector3 direction = Vector3.ProjectOnPlane(b - a, connection.AUp).normalized;
                     float run = Vector3.ProjectOnPlane(b - a, connection.AUp).magnitude -
                         DeckEdgeDistance(direction, connection.a.piece.transform.rotation) - DeckEdgeDistance(direction, connection.b.piece.transform.rotation) + 0.36f;
-                    float authoredRun = Mathf.Abs(Vector3.Dot(b - a, connection.AUp)) > 0.2f ? flightStair.run : flatStair != null ? flatStair.run : 0f;
+                    float authoredRun = connection.attached ? 0f : Mathf.Abs(Vector3.Dot(b - a, connection.AUp)) > 0.2f ? flightStair.run : flatStair != null ? flatStair.run : 0f;
                     if (run < authoredRun + 0.15f) { valid = false; break; }
-                    ConfigureLink(connection.link, a, b, connection.AUp, CastleGeometry.Orientation(connection.AUp),
-                        connection.a.piece.transform.rotation, connection.b.piece.transform.rotation);
+                    ConfigureNearbyConnectionPose(connection, a, b, connection.a.piece.transform.rotation, connection.b.piece.transform.rotation);
                     sweep.Encapsulate(ConnectionClearance(connection.link.bounds, connection.AUp));
                 }
                 ConfigureNearbyLink(connection);

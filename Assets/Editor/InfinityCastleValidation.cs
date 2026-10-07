@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using StarterAssets;
+using Cinemachine;
 
 [InitializeOnLoad]
 public static class InfinityCastleValidation
@@ -25,6 +26,7 @@ public static class InfinityCastleValidation
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             TestGravityMotor();
+            TestGravityCamera();
             TestZones();
             TestRigidbodyGravity();
             TestMobileInput();
@@ -41,7 +43,7 @@ public static class InfinityCastleValidation
         }
         results.Close(); Debug.Log("Castle validation passed.");
     }
-    private static ThirdPersonController Player(Vector3 position)
+    private static ThirdPersonController Player(Vector3 position, bool withCameraTarget = false)
     {
         var go = new GameObject("Validation Player");
         var settings = go.AddComponent<CharacterController>();
@@ -49,8 +51,141 @@ public static class InfinityCastleValidation
         settings.skinWidth = 0.02f; settings.stepOffset = 0.25f;
         go.AddComponent<StarterAssetsInputs>(); go.AddComponent<InfinityGravityBody>();
         var controller = go.AddComponent<ThirdPersonController>();
+        if (withCameraTarget)
+        {
+            controller.CinemachineCameraTarget = new GameObject("Validation Camera Target");
+            controller.CinemachineCameraTarget.transform.SetParent(go.transform, false);
+            controller.CinemachineCameraTarget.transform.localPosition = Vector3.up * 1.375f;
+        }
         controller.JumpTimeout = 0.1f; controller.GroundLayers = ~0;
         go.transform.position = position; controller.Initialize(); return controller;
+    }
+    public static void RunCamera()
+    {
+        if (!Application.isBatchMode) throw new InvalidOperationException("Run in the isolated project.");
+        results = new StreamWriter(Path.GetFullPath("../castle-camera.txt"));
+        try
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            TestGravityCamera();
+            TestGravityMotor();
+            TestMobileInput();
+            TestScreenLook();
+            results.WriteLine("ALL CAMERA CHECKS PASSED");
+        }
+        catch (Exception error) { results.WriteLine(error); Debug.LogException(error); results.Close(); EditorApplication.Exit(1); return; }
+        results.Close();
+    }
+    private static void TestGravityCamera()
+    {
+        GameObject main = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(
+            "Assets/StarterAssets/ThirdPersonController/Prefabs/MainCamera.prefab"));
+        CinemachineBrain brain = main.GetComponent<CinemachineBrain>();
+        GameObject follow = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(
+            "Assets/StarterAssets/ThirdPersonController/Prefabs/PlayerFollowCamera.prefab"));
+        CinemachineVirtualCamera vcam = follow.GetComponent<CinemachineVirtualCamera>();
+        vcam.GetCinemachineComponent<CinemachineBasicMultiChannelPerlin>().m_AmplitudeGain = 0f;
+        vcam.GetCinemachineComponent<Cinemachine3rdPersonFollow>().Damping = Vector3.zero;
+        foreach (float dt in new[] { 1f / 30f, 1f / 60f })
+        foreach (Vector3 up in new[] { Vector3.left, Vector3.right, Vector3.forward, Vector3.back, Vector3.down })
+        {
+            ThirdPersonController player = Player(Vector3.up * 10f, true);
+            StarterAssetsInputs input = player.GetComponent<StarterAssetsInputs>();
+            Transform target = player.CinemachineCameraTarget.transform;
+            vcam.Follow = target; vcam.PreviousStateIsValid = false;
+            player.Simulate(dt); player.SimulateCamera(dt);
+            vcam.InternalUpdateCameraState(brain.DefaultWorldUp, dt);
+            Quaternion start = target.rotation, renderedStart = vcam.State.FinalOrientation;
+            Vector3 startPosition = target.position;
+            player.GetComponent<InfinityGravityBody>().SetGravity(-up, 22f, true, 8f);
+            player.Simulate(dt);
+            Check(Vector3.Dot(player.transform.up, up) > .999f, "Physics aligns immediately " + up);
+            Check(Quaternion.Angle(start, target.rotation) < .01f && Vector3.Distance(startPosition, target.position) < .001f,
+                "Gravity switch preserves the displayed camera pose " + up);
+            player.SimulateCamera(dt); vcam.InternalUpdateCameraState(brain.DefaultWorldUp, dt);
+            Check(Quaternion.Angle(renderedStart, vcam.State.FinalOrientation) < 3f && Vector3.Distance(startPosition, target.position) < .02f,
+                "Camera starts the gravity change without a cut " + up + " at " + Mathf.RoundToInt(1f / dt) + " FPS");
+            Quaternion previous = target.rotation;
+            float elapsed = dt;
+            while (elapsed < player.GravityCameraTransitionDuration * .5f)
+            {
+                player.SimulateCamera(dt); vcam.InternalUpdateCameraState(brain.DefaultWorldUp, dt);
+                if (Quaternion.Angle(previous, vcam.State.FinalOrientation) > 11f)
+                    Check(false, "Camera turn exceeds its per-frame smoothness bound " + up);
+                previous = target.rotation; elapsed += dt;
+            }
+            float remaining = Vector3.Angle(target.up, up);
+            Check(remaining > 25f && remaining < 110f, "Visible intermediate gravity orientation " + up);
+            Check(Vector3.Angle(brain.DefaultWorldUp, target.up) < .01f, "Camera target and Cinemachine share the same smooth up " + up);
+            input.touchLook = true; input.look = new Vector2(60f, 0f);
+            Vector3 beforeLook = target.forward;
+            player.SimulateCamera(dt);
+            Check(Vector3.Angle(beforeLook, target.forward) > .5f, "Touch look remains responsive during gravity transition " + up);
+            input.look = Vector2.zero;
+            for (int frame = 0; frame < Mathf.CeilToInt(player.GravityCameraTransitionDuration / dt) + 2; frame++)
+                player.SimulateCamera(dt);
+            Check(Vector3.Angle(target.up, up) < .05f && Vector3.Distance(target.position, player.transform.TransformPoint(Vector3.up * 1.375f)) < .001f,
+                "Camera settles into its normal gravity-relative pose " + up);
+            player.GetComponent<InfinityGravityBody>().SetGravity(Vector3.down, 22f, true, 8f);
+            player.Simulate(dt);
+            for (int frame = 0; frame < Mathf.CeilToInt(.2f / dt); frame++) player.SimulateCamera(dt);
+            Quaternion interrupted = target.rotation; Vector3 interruptedPosition = target.position;
+            player.GetComponent<InfinityGravityBody>().SetGravity(Vector3.left, 22f, true, 8f);
+            player.Simulate(dt); player.SimulateCamera(dt);
+            Check(Quaternion.Angle(interrupted, target.rotation) < 3f && Vector3.Distance(interruptedPosition, target.position) < .02f,
+                "An interrupted gravity transition continues from the current pose " + up);
+            for (int frame = 0; frame < Mathf.CeilToInt(player.GravityCameraTransitionDuration / dt) + 2; frame++) player.SimulateCamera(dt);
+            Check(Vector3.Angle(target.up, Vector3.right) < .05f, "Interrupted camera transition reaches the newest gravity " + up);
+            UnityEngine.Object.DestroyImmediate(player.gameObject);
+        }
+        UnityEngine.Object.DestroyImmediate(follow); UnityEngine.Object.DestroyImmediate(main);
+    }
+    public static void RunTopology()
+    {
+        if (!Application.isBatchMode) throw new InvalidOperationException("Run in the isolated project.");
+        results = new StreamWriter(Path.GetFullPath("../castle-topology.txt"));
+        try
+        {
+            for (int seed = 0; seed < 8; seed++)
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                ThirdPersonController player = Player(Vector3.up * 15f);
+                GameObject root = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/prefabs/InfinityCastleRuntime.prefab"));
+                DynamicInfinityCastle castle = root.GetComponent<DynamicInfinityCastle>();
+                castle.player = player.transform; castle.randomSeed += seed * 193; castle.castleLighting = false; castle.periodicRebuilding = false;
+                castle.InitializeCastle();
+                Check(castle.ValidateRouteMix(out string mix), "Mixed route types seed " + seed + ": " + mix);
+                Check(castle.ValidateNoBuildingOverlaps(out string overlap), "Mixed layout clearance seed " + seed + ": " + overlap);
+                Check(castle.ValidateNearbyConnectionClearance(out string links), "Mixed link clearance seed " + seed + ": " + links);
+                Check(castle.ValidateNearbyConnectionGravity(out string gravity), "Mixed gravity seed " + seed + ": " + gravity);
+                Check(castle.ValidateAuthoredNearbyStairs(out string authored), "Authored stair fit seed " + seed + ": " + authored);
+                Check(castle.ValidateNearbyCornerApproaches(out string corners), "Outward gravity corners seed " + seed + ": " + corners);
+                Check(castle.ValidateNearbyRouteCoverage(out string route), "Walking exits seed " + seed + ": " + route);
+                results.WriteLine("Counts: attached=" + castle.AttachedBuildingCount + ", stairs=" + castle.StairBuildingCount + ", jump=" + castle.JumpBuildingCount + ", distant=" + castle.DistantBuildingCount);
+                Step(player, 60); Check(player.Grounded, "Open starting platform seed " + seed);
+                castle.simultaneousShifts = 0;
+                Check(castle.TryGetNearbyJumpRoute(out Vector3 takeoff, out Vector3 arrival, out InfiniteCastleGrid source, out Transform destination), "Optional jump route seed " + seed);
+                player.transform.position = takeoff; player.ResetFallVelocity(); player.GetComponent<InfinityGravityBody>().EnterZone(source);
+                for (int frame = 0; frame < 60; frame++) { castle.SimulateCastle(1f / 60f); Step(player, 1); }
+                Check(player.Grounded, "Optional jump starts on its actual base seed " + seed);
+                StarterAssetsInputs input = player.GetComponent<StarterAssetsInputs>(); input.jump = true;
+                Vector3 jumpUp = -source.gravityDirection.normalized;
+                float height = Vector3.Dot(player.transform.position, jumpUp), peak = height;
+                for (int frame = 0; frame < 100; frame++)
+                {
+                    Vector3 delta = Vector3.ProjectOnPlane(arrival - player.transform.position, jumpUp);
+                    Vector3 forward = player.MovementForward;
+                    input.move = delta.magnitude > .15f ? new Vector2(Vector3.Dot(delta.normalized, Vector3.Cross(jumpUp, forward).normalized), Vector3.Dot(delta.normalized, forward)) : Vector2.zero;
+                    castle.SimulateCastle(1f / 60f); Step(player, 1); peak = Mathf.Max(peak, Vector3.Dot(player.transform.position, jumpUp));
+                }
+                input.move = Vector2.zero;
+                Check(peak - height > .7f && player.Grounded && player.Motor.GroundHit.collider != null &&
+                    player.Motor.GroundHit.collider.transform.IsChildOf(destination), "Jump-only gap lands on its destination seed " + seed + "; position=" + player.transform.position + ", arrival=" + arrival);
+            }
+            results.WriteLine("ALL TOPOLOGY CHECKS PASSED");
+        }
+        catch (Exception e) { results.WriteLine(e); Debug.LogException(e); results.Close(); EditorApplication.Exit(1); return; }
+        results.Close();
     }
     private static void Step(ThirdPersonController player, int frames)
     {
@@ -236,6 +371,7 @@ public static class InfinityCastleValidation
         Check(castle.ValidateNoBuildingOverlaps(out string reason), "Initial building clearance: " + reason);
         Check(castle.ValidateNearbyConnectionGravity(out string connectionError), "Same-gravity stairs cover both entrances: " + connectionError);
         Check(castle.ActiveConnectionCount > 32, "Nearby buildings have connected walking routes; links=" + castle.ActiveConnectionCount);
+        Check(castle.ValidateRouteMix(out string routeMix), "Attached courts, stairs, optional jumps and distant scenery: " + routeMix);
         Check(castle.ValidateNearbyRouteCoverage(out string routeError), "Initial playable routes have connected exits: " + routeError);
         Step(player, 60); Check(player.Grounded, "Player begins on an open, solid balcony");
         Check(player.GetComponent<InfinityGravityBody>().Up == Vector3.up, "The starting route has normal gravity, not the lower face's gravity");
@@ -244,7 +380,13 @@ public static class InfinityCastleValidation
         Vector3 initial = player.transform.position;
         castle.TryGetNearbyGravitySurface(Vector3.down, out Vector3 initialCeiling, out _);
         results.WriteLine("Initial ceiling=" + initialCeiling + ", player=" + initial);
-        if (castle.randomNearbyCastle) TestNearbyTraversal(castle, player);
+        if (castle.randomNearbyCastle)
+        {
+            int shifts = castle.simultaneousShifts;
+            castle.simultaneousShifts = 0;
+            TestNearbyTraversal(castle, player);
+            castle.simultaneousShifts = shifts;
+        }
         for (int move = 0; move < 6; move++)
         {
             Vector3[] streamingDirections = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right, Vector3.up, Vector3.down };
@@ -265,6 +407,8 @@ public static class InfinityCastleValidation
             ", up=" + player.GetComponent<InfinityGravityBody>().Up + ", speed=" + player.VerticalSpeed + ", landing=" + settleTarget + ", landingUp=" + settleUp +
             ", generation=" + castle.LandingGeneration + ", block=" + player.Motor.LastStepBlock);
         int commandsBeforeRest = castle.ShiftCommandsIssued;
+        int rebuildsBeforeRest = castle.RebuildGeneration;
+        castle.periodicRebuilding = true;
         bool observedMotion = false, observedRest = false;
         for (int i = 0; i < 1800; i++)
         {
@@ -275,8 +419,9 @@ public static class InfinityCastleValidation
             if (observedMotion && !moving) observedRest = true;
             if (i % 60 == 0) Check(castle.ValidateNoBuildingOverlaps(out reason), "Moving building clearance " + i + ": " + reason);
         }
-        Check(observedMotion && observedRest && castle.ShiftCommandsIssued > commandsBeforeRest,
+        Check(observedMotion && observedRest && (castle.ShiftCommandsIssued > commandsBeforeRest || castle.RebuildGeneration > rebuildsBeforeRest),
             "Random reshaping settles into a quiet interval while the player stands still");
+        castle.periodicRebuilding = false;
         // Walk both connector orientations, including the real stair mesh, with the actual motor.
         foreach (Vector2Int direction in castle.randomNearbyCastle ? Array.Empty<Vector2Int>() : new[] { Vector2Int.right, Vector2Int.up })
         {
@@ -334,7 +479,7 @@ public static class InfinityCastleValidation
         catch (Exception error) { results.WriteLine(error); results.Close(); EditorApplication.Exit(1); return; }
         results.Close();
     }
-    private static void TestNearbyTraversal(DynamicInfinityCastle castle, ThirdPersonController player, int travelLegs = 8)
+    private static void TestNearbyTraversal(DynamicInfinityCastle castle, ThirdPersonController player, int travelLegs = 12)
     {
         InfinityGravityBody gravity = player.GetComponent<InfinityGravityBody>();
         StarterAssetsInputs input = player.GetComponent<StarterAssetsInputs>();
@@ -344,15 +489,21 @@ public static class InfinityCastleValidation
         for (int leg = 0; leg < travelLegs; leg++)
         {
             Vector3 preference = (Vector3.forward + Vector3.right).normalized;
-            Check(castle.TryGetNearbyWalkConnection(preference, out Vector3 start, out Vector3 end), "Connected walking exit after travel " + leg);
-            WalkTo(castle, player, start);
-            WalkTo(castle, player, end);
+            Check(castle.TryGetNearbyWalkConnection(preference, out Vector3 start, out Vector3 end, out Transform sourceFrame, out Transform destinationFrame), "Connected walking exit after travel " + leg);
+            Vector3 sourceLocal = sourceFrame.InverseTransformPoint(start);
+            Vector3 destinationLocal = destinationFrame.InverseTransformPoint(end);
+            WalkTo(castle, player, start, true, sourceFrame);
+            Check(player.Grounded && Vector3.Distance(player.transform.position, sourceFrame.TransformPoint(sourceLocal)) < 1f,
+                "Reach the selected source port " + leg + "; actual=" + player.transform.position + ", expected=" + sourceFrame.TransformPoint(sourceLocal) + ", block=" + player.Motor.LastStepBlock);
+            WalkTo(castle, player, destinationFrame.TransformPoint(destinationLocal), true, destinationFrame);
+            end = destinationFrame.TransformPoint(destinationLocal);
             furthestTravel = Mathf.Max(furthestTravel, (player.transform.position - initial).magnitude);
             Check(player.Grounded && Vector3.ProjectOnPlane(player.transform.position - end, Vector3.up).magnitude < 2f &&
                 Mathf.Abs(player.transform.position.y - end.y) < 0.35f, "Walk stairs without jumping after travel " + leg +
                 "; position=" + player.transform.position + ", expected=" + end + ", up=" + gravity.Up + ", block=" + player.Motor.LastStepBlock);
             Check(castle.ValidateNearbyRouteCoverage(out string routeError), "Route coverage after walking " + leg + ": " + routeError);
-            Check(castle.ValidateNoBuildingOverlaps(out string overlap), "Walking and reshaping clearance " + leg + ": " + overlap);
+            Check(castle.ValidateAuthoredNearbyStairs(out string stairError), "Authored stair fit after walking " + leg + ": " + stairError);
+            Check(castle.ValidateNoBuildingOverlaps(out string overlap), "Walking route clearance " + leg + ": " + overlap);
         }
         if (travelLegs > 0) Check(furthestTravel > castle.LayerSpacing * 2f, "Walking reaches beyond the starting neighborhood; maximum distance=" + furthestTravel);
         Check(objects == castle.GetComponentsInChildren<Transform>(true).Length, "Walking route refill reuses the original pools");
@@ -363,9 +514,12 @@ public static class InfinityCastleValidation
         player.transform.position = approach; player.ResetFallVelocity(); gravity.RestoreDefaultGravity();
         castle.SimulateCastle(0.02f); Step(player, 40);
         input.move = new Vector2(wallDirection.x, wallDirection.z);
-        for (int i = 0; i < 140; i++)
+        float approachDistance = Mathf.Abs(Vector3.Dot(wallBase.transform.position - approach, wallUp)) /
+            Mathf.Max(.05f, Mathf.Abs(Vector3.Dot(wallDirection, wallUp)));
+        int approachFrames = Mathf.Clamp(Mathf.CeilToInt((approachDistance + 5f) / player.MoveSpeed * 60f), 140, 1200);
+        for (int i = 0; i < approachFrames; i++)
         {
-            if (Vector3.Dot(gravity.Up, wallUp) > 0.99f && player.Grounded) input.move = Vector2.zero;
+            if (Vector3.Dot(gravity.Up, wallUp) > 0.99f) input.move = Vector2.zero;
             castle.SimulateCastle(1f / 60f); Step(player, 1);
         }
         Check(Vector3.Dot(gravity.Up, wallUp) > 0.99f && player.Grounded,
@@ -378,11 +532,12 @@ public static class InfinityCastleValidation
         entry.x = Mathf.Clamp(entry.x, -wallBalcony.Width * 0.5f + 0.8f, wallBalcony.Width * 0.5f - 0.8f);
         entry.z = Mathf.Clamp(entry.z, -wallBalcony.Depth * 0.5f + 0.8f, wallBalcony.Depth * 0.5f - 0.8f);
         entry.y = 0f;
-        WalkTo(castle, player, wallBase.transform.TransformPoint(entry) + wallUp * 0.06f, false);
-        Check(player.Grounded && Vector3.Dot(gravity.Up, wallUp) > 0.99f, "Walk from the gravity corner onto the building's base balcony; position=" +
+        WalkTo(castle, player, wallBase.transform.TransformPoint(entry) + wallUp * 0.06f, false, wallBase.transform);
+        Check(player.Grounded && Vector3.Dot(gravity.Up, wallUp) > 0.99f &&
+            Vector3.Distance(player.transform.position, wallBase.transform.TransformPoint(entry)) < 1f, "Walk from the gravity corner onto the building's base balcony; position=" +
             player.transform.position + ", target=" + wallBase.transform.TransformPoint(entry) + ", up=" + gravity.Up + ", expected=" + wallUp +
             ", grounded=" + player.Grounded + ", block=" + player.Motor.LastStepBlock);
-        Check(castle.TryGetNearbyCeilingApproach(out Vector3 ceilingApproach), "Streamed wall has a connected ceiling corner");
+        Check(castle.TryGetNearbyCeilingApproach(out Vector3 ceilingApproach, out Vector3 ceilingDirection), "Streamed wall has a connected ceiling corner");
         if (TryBalconyDetour(player, ceilingApproach, out Vector3 firstCorner, out Vector3 secondCorner))
         {
             WalkTo(castle, player, firstCorner, false);
@@ -390,12 +545,12 @@ public static class InfinityCastleValidation
         }
         for (int i = 0; i < 1500; i++)
         {
-            castle.TryGetNearbyCeilingApproach(out ceilingApproach);
+            if (!castle.TryGetNearbyCeilingApproach(out ceilingApproach, out ceilingDirection)) break;
             if (Vector3.Dot(gravity.Up, Vector3.down) > 0.99f && player.Grounded) break;
-            Vector3 delta = Vector3.ProjectOnPlane(ceilingApproach - player.transform.position, wallUp);
+            Vector3 delta = Vector3.ProjectOnPlane(ceilingApproach - player.transform.position, gravity.Up);
             if (delta.magnitude < 0.3f) break;
             delta.Normalize(); Vector3 forward = player.MovementForward;
-            input.move = new Vector2(Vector3.Dot(delta, Vector3.Cross(wallUp, forward).normalized), Vector3.Dot(delta, forward));
+            input.move = new Vector2(Vector3.Dot(delta, Vector3.Cross(gravity.Up, forward).normalized), Vector3.Dot(delta, forward));
             castle.SimulateCastle(1f / 60f); Step(player, 1);
         }
         Check(player.Grounded && ((Vector3.Dot(gravity.Up, wallUp) > 0.99f &&
@@ -406,8 +561,8 @@ public static class InfinityCastleValidation
         {
             if (Vector3.Dot(gravity.Up, Vector3.down) > 0.99f && player.Grounded) break;
             Vector3 forward = player.MovementForward;
-            input.move = new Vector2(Vector3.Dot(Vector3.down, Vector3.Cross(gravity.Up, forward).normalized), Vector3.Dot(Vector3.down, forward));
-            if (Vector3.Dot(gravity.Up, Vector3.down) > 0.99f && player.Grounded) input.move = Vector2.zero;
+            input.move = new Vector2(Vector3.Dot(ceilingDirection, Vector3.Cross(gravity.Up, forward).normalized), Vector3.Dot(ceilingDirection, forward));
+            if (Vector3.Dot(gravity.Up, Vector3.down) > 0.99f) input.move = Vector2.zero;
             castle.SimulateCastle(1f / 60f); Step(player, 1);
         }
         input.move = Vector2.zero;
@@ -416,7 +571,7 @@ public static class InfinityCastleValidation
         int verifiedFrames = 0;
         foreach (Vector3 up in new[] { Vector3.left, Vector3.right, Vector3.forward, Vector3.back, Vector3.down })
         {
-            if (!castle.TryGetNearbyGravitySurface(up, out Vector3 point, out InfiniteCastleGrid zone))
+            if (!castle.TryGetNearbyGravitySurface(up, out Vector3 point, out InfiniteCastleGrid zone, up == Vector3.right))
             { results.WriteLine("INFO No base-balcony branch currently uses " + up + "; an unreachable lower face is not substituted."); continue; }
             verifiedFrames++;
             Check(Vector3.Dot(zone.transform.up, up) > 0.99f && zone.name == "Connected Castle Base",
@@ -437,11 +592,19 @@ public static class InfinityCastleValidation
                 ", grounded=" + player.Grounded + ", up=" + gravity.Up + ", position=" + player.transform.position);
             if (up == Vector3.right)
             {
-                bool hasExit = castle.TryGetNearbyWalkConnection(Vector3.forward, out Vector3 sourcePort, out Vector3 destination);
+                bool hasExit = castle.TryGetNearbyWalkConnection(Vector3.forward, out Vector3 sourcePort, out Vector3 destination, out Transform sourceFrame, out Transform destinationFrame);
                 if (!hasExit) DescribeFaceGrowth(castle, player);
                 Check(hasExit, "Occupied alternate-gravity face has a continuous walking exit");
-                WalkTo(castle, player, sourcePort);
-                WalkTo(castle, player, destination);
+                results.WriteLine("Side exit source=" + sourcePort + ", target=" + destination + "\n" + castle.DescribeLocalConnections());
+                Vector3 sourceLocal = sourceFrame.InverseTransformPoint(sourcePort), destinationLocal = destinationFrame.InverseTransformPoint(destination);
+                WalkTo(castle, player, sourcePort, true, sourceFrame);
+                sourcePort = sourceFrame.TransformPoint(sourceLocal);
+                Check(player.Grounded && Vector3.Distance(player.transform.position, sourcePort) < 1f,
+                    "Reach the sideways stair entrance; actual=" + player.transform.position + ", source=" + sourcePort + ", block=" + player.Motor.LastStepBlock);
+                destination = destinationFrame.TransformPoint(destinationLocal);
+                results.WriteLine("Settled target=" + destination + "\n" + castle.DescribeLocalConnections());
+                WalkTo(castle, player, destination, true, destinationFrame);
+                destination = destinationFrame.TransformPoint(destinationLocal);
                 Check(player.Grounded && Vector3.Dot(gravity.Up, up) > 0.99f &&
                     Vector3.Distance(player.transform.position, destination) < 1f, "Walk the opposite-gravity stair connection without jumping; position=" +
                     player.transform.position + ", expected=" + destination + ", up=" + gravity.Up + ", grounded=" + player.Grounded + ", block=" + player.Motor.LastStepBlock);
@@ -468,7 +631,7 @@ public static class InfinityCastleValidation
         }
         results.Flush();
     }
-    private static void WalkTo(DynamicInfinityCastle castle, ThirdPersonController player, Vector3 target, bool aroundTower = true)
+    private static void WalkTo(DynamicInfinityCastle castle, ThirdPersonController player, Vector3 target, bool aroundTower = true, Transform targetFrame = null)
     {
         if (aroundTower && TryBalconyDetour(player, target, out Vector3 first, out Vector3 second))
         {
@@ -477,8 +640,10 @@ public static class InfinityCastleValidation
         }
         StarterAssetsInputs input = player.GetComponent<StarterAssetsInputs>();
         input.jump = false; input.sprint = false;
+        Vector3 localTarget = targetFrame != null ? targetFrame.InverseTransformPoint(target) : target;
         for (int i = 0; i < 1600; i++)
         {
+            if (targetFrame != null) target = targetFrame.TransformPoint(localTarget);
             Vector3 up = player.GetComponent<InfinityGravityBody>().Up;
             Vector3 delta = Vector3.ProjectOnPlane(target - player.transform.position, up);
             if (delta.magnitude < 0.3f) break;
@@ -844,6 +1009,10 @@ public static class InfinityCastleValidation
             var gravity = player.GetComponent<InfinityGravityBody>(); gravity.SetGravity(-up, 22f, true, 8f); gravity.EnterZone(zone);
             for (int i = 0; i < 600; i++) { castle.SimulateCastle(1f / 30f); player.Simulate(1f / 30f); }
             Check(player.Grounded, "Rider settles " + up);
+            Check(castle.TryGetNearbySafeRiderPoint(out Vector3 safePoint), "Rider fixture has a balcony point clear of connector zones " + up);
+            player.transform.position = safePoint; player.ResetFallVelocity();
+            for (int i = 0; i < 30; i++) { castle.SimulateCastle(1f / 30f); player.Simulate(1f / 30f); }
+            Check(player.Grounded, "Clear interior rider fixture is supported " + up);
             int rides = castle.RideMotionCount;
             float travelled = 0f;
             for (int attempt = 0; attempt < 12 && castle.RideMotionCount == rides; attempt++)
@@ -880,7 +1049,7 @@ public static class InfinityCastleValidation
                 }
                 travelled = Vector3.Distance(before, player.transform.position);
             }
-            Check(castle.RideMotionCount > rides && travelled > 0.5f, "The occupied building physically carries the player " + up + "; travel=" + travelled);
+            Check(castle.RideMotionCount > rides && travelled > 0.5f, "The occupied building physically carries the player " + up + "; travel=" + travelled + "; " + castle.DescribeRiderReadiness());
             for (int i = 0; i < 1800 && (castle.HasPendingLayout || castle.MovingBuildingCount > 0); i++)
             { castle.SimulateCastle(1f / 30f); player.Simulate(1f / 30f); }
             Check(castle.DirectRebuild(player.MovementForward), "Whole-castle rebuild includes rider choreography " + up);

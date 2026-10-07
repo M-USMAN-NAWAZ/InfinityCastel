@@ -1,0 +1,12 @@
+If you want to add details, use the "Ls" textures
+In blender, in the shading graph, add a mixRGB node and an invert color node
+
+Plug the Diffuse node into A in the MixRGB node
+Plug the Ls node into the invert node, then plug it into B in the MixRGB node
+MixRGB node, the blending mode should be "Multiply"
+
+For the eyes
+Plug the Blue background of the eye node into A in the MixRGB node
+Plug the yellow pupil node into B in the MixRGB node
+Plug the yellow pupil's Alpha node into the Alpha node the MixRGB node
+MixRGB node, the blending mode should be "Mix"

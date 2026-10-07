@@ -292,6 +292,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         director = GetComponent<InfinityCastleDirector>();
         if (director == null) director = gameObject.AddComponent<InfinityCastleDirector>();
         director.Initialize(randomSeed);
+        InitializeLearning();
         Physics.SyncTransforms();
         initialized = true;
         if (Application.isPlaying)

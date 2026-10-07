@@ -16,6 +16,7 @@ public static class InfinityCastlePreviewRunner
     private static DynamicInfinityCastle castle;
     private static ThirdPersonController controller;
     private static double started;
+    private static double nextProgress;
     private static float capturedAt;
     private static Color32[] overviewPixels;
     private static Color32[] playerPixels;
@@ -66,8 +67,13 @@ public static class InfinityCastlePreviewRunner
     private static void Tick()
     {
         if (EditorApplication.timeSinceStartup - started > 240)
-        { Debug.LogError("Play-mode preview timed out."); Finish(1); return; }
+        { Debug.LogError("Play-mode preview timed out: " + DescribeDirector()); Finish(1); return; }
         if (!EditorApplication.isPlaying || Time.time < 1f) return;
+        if (castle != null && EditorApplication.timeSinceStartup > nextProgress)
+        {
+            nextProgress = EditorApplication.timeSinceStartup + 15;
+            Debug.Log("Playground progress: " + DescribeDirector());
+        }
         if (inspection != null)
         {
             if (!shiftsCaptured)
@@ -134,10 +140,12 @@ public static class InfinityCastlePreviewRunner
             inspection.transform.LookAt(castle.player.position + Vector3.up * 7f);
             if (!Capture(inspection, "castle-playground-landed.png")) return;
             bool clear = castle.ValidateNoBuildingOverlaps(out string error);
+            bool learned = castle.UsesTrainedDirector && castle.LearnedDecisions > 1;
             bool skyboxPreserved = assignedSkybox != null && RenderSettings.skybox == assignedSkybox && Camera.main.clearFlags == CameraClearFlags.Skybox;
             File.WriteAllText(Path.GetFullPath("../castle-playmode.txt"),
                 $"Grounded={controller.Grounded}\nInitialized={castle.IsInitialized}\nKeyboard movement and jump={keyboardVerified}\nTouch movement, look and jump={touchVerified}\nNo overlaps={clear}\nSkybox preserved={skyboxPreserved}\nLanded on castle={castleLanding}\nLanding district rebuilt={fallStage == 3}\nTimed rebuilds={castle.RebuildGeneration}\nRebuilt connected buildings={castle.RebuiltRouteCount}\nCoordinated wings={castle.RebuiltDistrictCount}\nPhysically moved modules={castle.LastRebuildMovedCount}\nRotated modules={castle.LastRebuildRotatedCount}\nPhysical motion captured={motionCaptured}\nClose motion captured={nearMotionCaptured}\nNear-field motion commands={castle.NearFieldMotionCount}\nGravity-corner motion commands={castle.NearbyCornerMotionCount}\nRebuilt adjacent buildings={castle.LastRebuildNearMovedCount}\nChanged pixels={changedPixels}\nFixed-view architecture changes={architectureChangedPixels}\n{error}\n");
-            if (!clear || !castleLanding || !skyboxPreserved || fallStage != 3 || changedPixels < 1000 ||
+            File.AppendAllText(Path.GetFullPath("../castle-playmode.txt"), "Trained director=" + castle.UsesTrainedDirector + "\nLearned decisions=" + castle.LearnedDecisions + "\n");
+            if (!learned || !clear || !castleLanding || !skyboxPreserved || fallStage != 3 || changedPixels < 1000 ||
                 !motionCaptured || !nearMotionCaptured || castle.NearFieldMotionCount == 0 || castle.NearbyCornerMotionCount == 0 ||
                 castle.LastRebuildNearMovedCount == 0 || castle.RebuiltRouteCount == 0 || castle.RebuiltDistrictCount == 0 || architectureChangedPixels < 1000)
             { Debug.LogError("Play-mode validation failed: " + error); Finish(1); return; }
@@ -173,6 +181,11 @@ public static class InfinityCastlePreviewRunner
         EditorApplication.update -= Tick;
         EditorApplication.Exit(code);
     }
+    private static string DescribeDirector() => castle == null ? "castle not ready" :
+        "t=" + Time.time + ", trained=" + castle.UsesTrainedDirector + ", decisions=" + castle.LearnedDecisions +
+        ", commands=" + castle.ShiftCommandsIssued + ", rebuilds=" + castle.RebuildGeneration + ", rebuilding=" + castle.IsRebuilding +
+        ", moving=" + castle.MovingBuildingCount + ", nearbyMoving=" + castle.NearbyMovingCount + ", layoutPending=" + castle.HasPendingLayout +
+        ", grounded=" + controller.Grounded;
     private static bool VerifyKeyboard()
     {
         if (keyboardVerified) return true;

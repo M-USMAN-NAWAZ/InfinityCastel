@@ -1,0 +1,22 @@
+{
+  "behavior": "InfinityCastleDirector",
+  "unity_package": "com.unity.ml-agents@4.0.3",
+  "trainer": "mlagents==1.1.0",
+  "algorithm": "PPO",
+  "seed": 1729,
+  "training_steps": 151552,
+  "parallel_agents": 32,
+  "observations": 40,
+  "discrete_branches": [6, 4, 6, 3],
+  "hidden_layers": [64, 64],
+  "onnx_bytes": 43769,
+  "curriculum": "High-level route mixture, recent layouts, motion, gravity, falling and blocked-shift contexts. Not full player-physics training.",
+  "runtime_safety": "Object-pool placement, swept collision checks, connection gravity and landing recovery remain authoritative.",
+  "inference_backend": "Burst CPU",
+  "held_out_contexts": 512,
+  "layout_counts": [107, 80, 73, 70, 92, 90],
+  "mean_curriculum_reward": 0.5335462,
+  "masked_random_mean_reward": 0.5122991,
+  "editor_cpu_inference_ms": 1.0809,
+  "physical_android_device_benchmarked": false
+}

@@ -12,6 +12,8 @@ public partial class DynamicInfinityCastle
         public Bounds artBounds;
         public float depth, finishedAt, nextFaceGrowthAt;
         public int serial, faceGrowthAttempt;
+        public int parentSerial;
+        public CastleDirectorPolicy.RouteKind kind = CastleDirectorPolicy.RouteKind.Stairs;
         public bool still, travelled, route, rebuilding, movedThisFrame, carryingPlayer;
     }
     private sealed class NearbyLink
@@ -20,6 +22,7 @@ public partial class DynamicInfinityCastle
         public Link link, turnLanding;
         public Bounds reservation;
         public bool corner;
+        public bool attached;
         public bool aUnderside, bUnderside;
         public float cornerAxisOffset;
         public Vector3 AUp => aUnderside ? -a.up : a.up;
@@ -32,6 +35,7 @@ public partial class DynamicInfinityCastle
     private readonly List<NearbyLink> nearbyLinks = new();
     private readonly List<NearbyNode> nearbyCandidates = new();
     private readonly List<NearbyNode> growthCandidates = new();
+    private readonly List<(NearbyNode node, int serial)> urgentGravityRoutes = new(128);
     private IEnumerator<object> nearbyLayout;
     private IComparer<NearbyNode> growthComparer;
     private bool nearbyRefillRequested;
@@ -130,6 +134,7 @@ public partial class DynamicInfinityCastle
         node.still = still; node.travelled = node.route = node.rebuilding = false; node.finishedAt = 0f;
         node.faceGrowthAttempt = 0; node.nextFaceGrowthAt = 0f;
         node.carryingPlayer = false;
+        node.parentSerial = 0; node.kind = CastleDirectorPolicy.RouteKind.Stairs;
         node.zone.gravityDirection = -up;
         node.zone.priority = 1;
         node.undersideZone.gravityDirection = up; node.undersideZone.priority = 1;
@@ -212,6 +217,19 @@ public partial class DynamicInfinityCastle
         // Local gravity exits are urgent; do not defer them until every distant route has been planned.
         EnsureNearbyGravityRoutes();
         yield return null;
+        using (IEnumerator<object> jumpBranch = ReserveNearbyJumpBranch())
+            while (jumpBranch.MoveNext()) yield return null;
+        urgentGravityRoutes.Clear();
+        foreach (NearbyNode node in nearbyNodes)
+            if (node.route && Vector3.Dot(node.up, gravity.Up) < .99f && !HasConnectedWalkExit(node))
+                urgentGravityRoutes.Add((node, node.serial));
+        for (int i = 0; i < urgentGravityRoutes.Count && nearbyPool.Count > NearbyReserveCount; i++)
+        {
+            var candidate = urgentGravityRoutes[i];
+            if (nearbyNodes.Contains(candidate.node) && candidate.node.serial == candidate.serial &&
+                !candidate.node.rebuilding && !candidate.node.piece.IsMoving) GrowFromNearbyFace(candidate.node, false);
+            yield return null;
+        }
         growthCandidates.Clear();
         foreach (NearbyNode node in nearbyNodes) if (node.route && !node.rebuilding) growthCandidates.Add(node);
         growthCandidates.Sort(growthComparer);
@@ -223,34 +241,48 @@ public partial class DynamicInfinityCastle
             if (!nearbyNodes.Contains(node) || node.piece.IsTranslating || node.rebuilding) continue;
             int frameCount = 0;
             foreach (NearbyNode placed in nearbyNodes) if (placed.route && Vector3.Dot(placed.up, node.up) > 0.99f) frameCount++;
-            if (frameCount >= (Vector3.Dot(node.up, gravity.Up) > 0.99f ? 96 : 4)) continue;
+            if (frameCount >= (Vector3.Dot(node.up, gravity.Up) > 0.99f ? 96 : 4) && HasConnectedWalkExit(node)) continue;
             Quaternion basis = CastleGeometry.Orientation(node.up);
             int sourceSerial = node.serial;
             for (int direction = 0; direction < 4 && nearbyNodes.Count < routeLimit && nearbyPool.Count > NearbyReserveCount; direction++)
             {
                 if (!nearbyNodes.Contains(node) || node.serial != sourceSerial || node.rebuilding || node.piece.IsTranslating) break;
-                Vector3 tangent = basis * (direction == 0 ? Vector3.right : direction == 1 ? Vector3.left :
-                    direction == 2 ? Vector3.forward : Vector3.back);
+                int heading = (direction + node.serial + LayoutPolicy.Layout) % 4;
+                Vector3 tangent = basis * (heading == 0 ? Vector3.right : heading == 1 ? Vector3.left :
+                    heading == 2 ? Vector3.forward : Vector3.back);
                 if (HasNearbyExit(node, tangent)) continue;
-                float stairChance = nearbyShapeRevision == 0 ? 0.65f : nearbyShapeRevision % 2 == 0 ? 0.85f : 0.3f;
+                CastleDirectorPolicy.RouteKind kind = LayoutPolicy.Route(NearbyRandom(node.serial, heading + 301));
+                if (ConnectedWalkExitCount(node) < 2) kind = CastleDirectorPolicy.RouteKind.Stairs;
+                float stairChance = LayoutPolicy.StairChance;
                 bool stairs = flightStair != null && NearbyRandom(node.serial, direction + 41) < stairChance;
-                float gap = (stairs ? flightStair.run : flatStair != null ? flatStair.run : 8f) + 2f;
-                float rise = stairs ? flightStair.rise * (NearbyRandom(node.serial, direction + 53) < 0.45f ? -1f : 1f) : 0f;
+                bool stairRoute = kind == CastleDirectorPolicy.RouteKind.Stairs;
+                float gap = kind == CastleDirectorPolicy.RouteKind.Attached ? .8f : kind == CastleDirectorPolicy.RouteKind.Jump ? jumpGap :
+                    (stairs ? flightStair.run : flatStair != null ? flatStair.run : 8f) + (stairRoute ? 2f : 18f + NearbyRandom(node.serial, heading + 305) * 20f);
+                float rise = stairRoute && stairs ? flightStair.rise * (NearbyRandom(node.serial, direction + 53) < 0.45f ? -1f : 1f) : 0f;
                 // A stable heading per port prevents a refill from scattering fresh candidates into occupied routes.
                 Vector3Int port = new(node.serial, direction, nearbyShapeRevision);
-                float skew = (Hash(port, 54) - 0.5f) * (nearbyShapeRevision == 0 ? 5f : 9f);
-                if (nearbyShapeRevision > 0) gap += Hash(port, 55) * 3f;
+                float skew = (Hash(port, 54) - 0.5f) * (stairRoute ? LayoutPolicy.Skew : kind == CastleDirectorPolicy.RouteKind.Distant ? deckSize * .7f : 2f);
+                if (nearbyShapeRevision > 0 && stairRoute) gap += Hash(port, 55) * 3f;
                 Vector3 surface = node.surface + tangent * (deckSize + gap) + node.up * rise + Vector3.Cross(node.up, tangent) * skew;
                 if ((surface - player.position).magnitude > NearbyWalkRadius) continue;
-                NearbyNode existing = FindNearbyNeighbor(node, surface);
+                NearbyNode existing = stairRoute ? FindNearbyNeighbor(node, surface) : null;
                 if (existing != null) { ConnectNearby(node, existing); continue; }
                 for (int attempt = 0; attempt < 3; attempt++)
                 {
-                    NearbyNode next = TryCreateNearbyNode(surface + tangent * attempt * 2f, node.up,
+                    NearbyNode next = TryCreateNearbyNode(surface + tangent * (stairRoute ? attempt * 2f : 0f), node.up,
                         NearbyRandom(node.serial, direction + 71) < stillPieceChance);
                     if (next == null) continue;
-                    if (ConnectNearby(node, next)) { next.route = true; growthCandidates.Add(next); break; }
+                    bool accepted = kind == CastleDirectorPolicy.RouteKind.Attached ? ConnectAttached(node, next) :
+                        stairRoute ? ConnectNearby(node, next) : true;
+                    if (accepted)
+                    {
+                        next.parentSerial = node.serial; next.kind = kind;
+                        next.route = kind != CastleDirectorPolicy.RouteKind.Distant;
+                        if (next.route) growthCandidates.Add(next);
+                        break;
+                    }
                     RetireNearbyNode(nearbyNodes.IndexOf(next));
+                    if (!stairRoute) break;
                 }
                 yield return null;
             }
@@ -260,7 +292,9 @@ public partial class DynamicInfinityCastle
         for (int i = 0; i < nearbyNodes.Count; i++)
         {
             for (int j = i + 1; j < nearbyNodes.Count; j++)
-                if (CanConnectNearby(nearbyNodes[i], nearbyNodes[j])) ConnectNearby(nearbyNodes[i], nearbyNodes[j]);
+                if (nearbyNodes[i].kind != CastleDirectorPolicy.RouteKind.Jump && nearbyNodes[j].kind != CastleDirectorPolicy.RouteKind.Jump &&
+                    nearbyNodes[i].route && nearbyNodes[j].route && Hash(new Vector3Int(nearbyNodes[i].serial, nearbyNodes[j].serial, nearbyShapeRevision), 381) < .35f &&
+                    CanConnectNearby(nearbyNodes[i], nearbyNodes[j])) ConnectNearby(nearbyNodes[i], nearbyNodes[j]);
             yield return null;
         }
         EnsureNearbyGravityRoutes();
@@ -274,10 +308,42 @@ public partial class DynamicInfinityCastle
             if (!nearbyNodes.Contains(node)) continue;
             Vector3 surface = node.surface + node.up * (maximumBuildingHeight + 8f) +
                 CastleGeometry.Orientation(node.up) * new Vector3(deckSize * 0.35f, 0f, deckSize * 0.2f);
-            if (TryCreateNearbyNode(surface, node.up, NearbyRandom(node.serial, 72) < stillPieceChance, false, false) != null) sceneryCount++;
+            NearbyNode scenery = TryCreateNearbyNode(surface, node.up, NearbyRandom(node.serial, 72) < stillPieceChance, false, false);
+            if (scenery != null) { scenery.kind = CastleDirectorPolicy.RouteKind.Distant; sceneryCount++; }
             yield return null;
         }
         RefreshReservations();
+    }
+    private IEnumerator<object> ReserveNearbyJumpBranch()
+    {
+        foreach (NearbyNode node in nearbyNodes)
+            if (node.kind == CastleDirectorPolicy.RouteKind.Jump && Vector3.Dot(node.up, gravity.Up) > .99f &&
+                (node.surface - player.position).magnitude < NearbyWalkRadius) yield break;
+        int initialCount = nearbyNodes.Count, attempts = 0;
+        for (int i = 0; i < initialCount && i < nearbyNodes.Count && attempts < 32 && nearbyPool.Count > NearbyReserveCount; i++)
+        {
+            NearbyNode source = nearbyNodes[i];
+            if (!source.route || source.piece.IsMoving || source.rebuilding || Vector3.Dot(source.up, gravity.Up) < .99f) continue;
+            int serial = source.serial;
+            Quaternion basis = CastleGeometry.Orientation(source.up);
+            for (int port = 0; port < 4 && nearbyPool.Count > NearbyReserveCount; port++)
+            {
+                if (!nearbyNodes.Contains(source) || source.serial != serial || source.piece.IsMoving || source.rebuilding) break;
+                int heading = (port + serial + LayoutPolicy.Layout) % 4;
+                Vector3 tangent = basis * (heading == 0 ? Vector3.right : heading == 1 ? Vector3.left : heading == 2 ? Vector3.forward : Vector3.back);
+                if (HasNearbyExit(source, tangent)) continue;
+                Vector3 surface = source.surface + tangent * (deckSize + jumpGap);
+                if ((surface - player.position).magnitude > NearbyWalkRadius) continue;
+                attempts++;
+                NearbyNode jump = TryCreateNearbyNode(surface, source.up, false);
+                if (jump != null)
+                {
+                    jump.kind = CastleDirectorPolicy.RouteKind.Jump; jump.parentSerial = source.serial; jump.route = true;
+                    yield break;
+                }
+                yield return null;
+            }
+        }
     }
     private float NearbyGrowthScore(NearbyNode node) => (node.surface - player.position - Vector3.ProjectOnPlane(playerVelocity, gravity.Up) * 3f).magnitude +
         (Vector3.Dot(node.up, gravity.Up) > 0.99f ? 0f : nearbyRadius * 4f);
@@ -300,7 +366,8 @@ public partial class DynamicInfinityCastle
         NearbyNode ceiling = null;
         foreach (NearbyNode node in nearbyNodes)
             if (node.route && Vector3.Dot(node.up, -anchor.up) > 0.99f && (node.surface - anchor.surface).magnitude < NearbyWalkRadius &&
-                Vector3.Dot(node.surface - anchor.surface, anchor.up) < -deckSize * 0.5f &&
+                Vector3.Dot(node.surface - anchor.surface, anchor.up) <= -(deckSize + 20f) &&
+                Vector3.ProjectOnPlane(node.surface - anchor.surface, anchor.up).magnitude < 6f &&
                 (ceiling == null || (node.surface - anchor.surface).sqrMagnitude < (ceiling.surface - anchor.surface).sqrMagnitude)) ceiling = node;
         for (int attempt = 0; ceiling == null && attempt < 8 && nearbyPool.Count > 10; attempt++)
         {
@@ -314,7 +381,7 @@ public partial class DynamicInfinityCastle
                 if (existing != anchor && existing != ceiling && Vector3.Dot(existing.up, tangent) > 0.99f &&
                     (existing.surface - anchor.surface).magnitude < deckSize * 2f &&
                     ConnectGravityCorner(anchor, existing, deckSize * 0.35f))
-                { if (ceiling != null) ConnectGravityCorner(existing, ceiling, deckSize * 0.35f); break; }
+                { EnsureNearbyCeilingCorner(existing, ceiling, anchor.up); break; }
             if (HasNearbyGravityFrame(tangent)) continue;
             for (int attempt = 0; attempt < 10; attempt++)
             {
@@ -325,14 +392,33 @@ public partial class DynamicInfinityCastle
                 NearbyNode wall = TryCreateNearbyNode(surface, tangent, true);
                 if (wall == null) continue;
                 if (!ConnectGravityCorner(anchor, wall, deckSize * 0.35f)) { RetireNearbyNode(nearbyNodes.IndexOf(wall)); continue; }
-                if (ceiling != null) ConnectGravityCorner(wall, ceiling, deckSize * 0.35f);
+                EnsureNearbyCeilingCorner(wall, ceiling, anchor.up);
                 break;
             }
         }
         if (ceiling != null && !ceiling.route) RetireNearbyNode(nearbyNodes.IndexOf(ceiling));
     }
+    private void EnsureNearbyCeilingCorner(NearbyNode wall, NearbyNode preferred, Vector3 floorUp)
+    {
+        float port = deckSize * .35f;
+        if (preferred != null && ConnectGravityCorner(wall, preferred, port)) return;
+        foreach (NearbyNode candidate in nearbyNodes)
+            if (candidate != wall && Vector3.Dot(candidate.up, -floorUp) > .99f &&
+                (candidate.surface - wall.surface).magnitude < NearbyWalkRadius && ConnectGravityCorner(wall, candidate, port)) return;
+        for (int attempt = 0; attempt < 8 && nearbyPool.Count > NearbyReserveCount; attempt++)
+        {
+            Vector3 surface = wall.surface - wall.up * (deckSize * .5f + 8f) - floorUp * (deckSize * .5f + 10f + attempt * 12f);
+            NearbyNode ceiling = TryCreateNearbyNode(surface, -floorUp, true);
+            if (ceiling == null) continue;
+            if (ConnectGravityCorner(wall, ceiling, port)) return;
+            RetireNearbyNode(nearbyNodes.IndexOf(ceiling));
+        }
+    }
     private bool HasNearbyExit(NearbyNode node, Vector3 direction)
     {
+        foreach (NearbyNode placed in nearbyNodes)
+            if ((placed.parentSerial == node.serial || (node.kind == CastleDirectorPolicy.RouteKind.Jump && placed.serial == node.parentSerial)) &&
+                Vector3.Dot(Vector3.ProjectOnPlane(placed.surface - node.surface, node.up).normalized, direction) > .85f) return true;
         foreach (NearbyLink connection in nearbyLinks)
         {
             NearbyNode other = connection.a == node ? connection.b : connection.b == node ? connection.a : null;
@@ -354,16 +440,31 @@ public partial class DynamicInfinityCastle
         Vector3 delta = Quaternion.Inverse(CastleGeometry.Orientation(a.up)) * (b.surface - a.surface);
         float along = Mathf.Max(Mathf.Abs(delta.x), Mathf.Abs(delta.z)), across = Mathf.Min(Mathf.Abs(delta.x), Mathf.Abs(delta.z));
         float gap = along - deckSize;
-        return across < deckSize * 0.3f && gap >= 1f && gap <= (rise > 0.1f ? flightStair.run : flatStair != null ? flatStair.run : 8f) + 8f;
+        return across < deckSize * 0.3f && gap >= 1f && gap <= (rise > 0.1f ? flightStair.run : flatStair != null ? flatStair.run : 8f) + 8f &&
+            FitsNearbyStairs(a.surface, b.surface, a.up, a.piece.transform.rotation, b.piece.transform.rotation);
+    }
+    private bool FitsNearbyStairs(Vector3 a, Vector3 b, Vector3 up, Quaternion aRotation, Quaternion bRotation)
+    {
+        Vector3 tangent = Vector3.ProjectOnPlane(b - a, up);
+        if (tangent.sqrMagnitude < .01f) return false;
+        float rise = Mathf.Abs(Vector3.Dot(b - a, up));
+        Stair stair = rise > .2f ? flightStair : flatStair;
+        if (stair == null || Mathf.Abs(rise - stair.rise) > .15f) return false;
+        Vector3 direction = tangent.normalized;
+        float run = tangent.magnitude - DeckEdgeDistance(direction, aRotation) - DeckEdgeDistance(direction, bRotation) + .36f;
+        return run >= stair.run + .15f;
     }
     private bool ConnectNearby(NearbyNode a, NearbyNode b, bool aUnderside = false)
     {
         if (!nearbyNodes.Contains(a) || !nearbyNodes.Contains(b)) return false;
+        if ((a.kind == CastleDirectorPolicy.RouteKind.Jump && a.parentSerial == b.serial) ||
+            (b.kind == CastleDirectorPolicy.RouteKind.Jump && b.parentSerial == a.serial)) return false;
         foreach (NearbyLink connection in nearbyLinks)
             if ((connection.a == a && connection.b == b) || (connection.a == b && connection.b == a)) return true;
         Vector3 up = aUnderside ? -a.up : a.up;
         Vector3 surface = aUnderside ? a.underside.transform.position : a.surface;
         if (a.rebuilding || b.rebuilding || linkPool.Count == 0 || Vector3.Dot(up, b.up) < 0.99f) return false;
+        if (!FitsNearbyStairs(surface, b.surface, up, a.piece.transform.rotation, b.piece.transform.rotation)) return false;
         Link link = linkPool.Dequeue();
         ConfigureLink(link, surface, b.surface, up, CastleGeometry.Orientation(up), a.piece.transform.rotation, b.piece.transform.rotation);
         Bounds clearance = ConnectionClearance(link.bounds, up);
@@ -455,6 +556,8 @@ public partial class DynamicInfinityCastle
         Vector3 up = bUnderside ? -b.up : b.up;
         Vector3 surface = bUnderside ? b.underside.transform.position : b.surface;
         if (a.rebuilding || b.rebuilding || !enableGravityZones || linkPool.Count < 2 || Mathf.Abs(Vector3.Dot(a.up, up)) > 0.01f) return false;
+        // Both faces must meet outside their balconies, so the turned capsule points away from the incoming floor.
+        if (!FitsNearbyCorner(a.surface, surface, a.up, up, a.piece.transform.rotation, b.piece.transform.rotation)) return false;
         Vector3 axis = Vector3.Cross(a.up, up);
         Vector3 corner = a.surface + up * Vector3.Dot(surface - a.surface, up);
         corner += axis * Vector3.Dot((a.surface + surface) * 0.5f - corner, axis);
@@ -473,6 +576,9 @@ public partial class DynamicInfinityCastle
             bUnderside = bUnderside, cornerAxisOffset = axisOffset });
         return true;
     }
+    private bool FitsNearbyCorner(Vector3 a, Vector3 b, Vector3 aUp, Vector3 bUp, Quaternion aRotation, Quaternion bRotation) =>
+        Vector3.Dot(b - a, bUp) >= DeckEdgeDistance(bUp, aRotation) + .5f &&
+        Vector3.Dot(a - b, aUp) >= DeckEdgeDistance(aUp, bRotation) + .5f;
     private void DisconnectNearby(NearbyNode node)
     {
         for (int i = nearbyLinks.Count - 1; i >= 0; i--)
@@ -573,9 +679,11 @@ public partial class DynamicInfinityCastle
     private bool OccupiesNearbyZone(InfiniteCastleGrid zone) => zone.Contains(player.position) || zone.Contains(player.position + player.up * 0.9f);
     private void GrowFromNearbyFace(NearbyNode node, bool underside)
     {
+        int exits = 0;
         foreach (NearbyLink connection in nearbyLinks)
             if (!connection.corner && ((connection.a == node && connection.aUnderside == underside) ||
-                (connection.b == node && connection.bUnderside == underside))) return;
+                (connection.b == node && connection.bUnderside == underside))) exits++;
+        if (exits >= 2) return;
         if (nearbyClock < node.nextFaceGrowthAt) return;
         Vector3 up = underside ? -node.up : node.up;
         Vector3 face = underside ? node.underside.transform.position : node.surface;
@@ -707,7 +815,7 @@ public partial class DynamicInfinityCastle
         end = firstJumpRoof.surface - direction * (deckSize * 0.5f - 0.6f) + firstJumpRoof.up * 0.06f;
         destination = firstJumpRoof.piece; return true;
     }
-    public bool TryGetNearbyGravitySurface(Vector3 up, out Vector3 point, out InfiniteCastleGrid zone)
+    public bool TryGetNearbyGravitySurface(Vector3 up, out Vector3 point, out InfiniteCastleGrid zone, bool walkingOnly = false)
     {
         NearbyNode nearest = null;
         bool back = false;
@@ -715,7 +823,7 @@ public partial class DynamicInfinityCastle
         foreach (NearbyNode node in nearbyNodes)
         {
             bool underside = false;
-            if (Vector3.Dot(node.up, up) < 0.99f) continue;
+            if (Vector3.Dot(node.up, up) < 0.99f || (walkingOnly && (!node.route || !HasConnectedWalkExit(node)))) continue;
             Transform face = (underside ? node.underside : node.roof).transform;
             Vector3 local = face.InverseTransformPoint(player.position);
             float candidate = new Vector3(Mathf.Max(0f, Mathf.Abs(local.x) - deckSize * 0.5f), local.y,
@@ -732,11 +840,18 @@ public partial class DynamicInfinityCastle
     public bool TryGetNearbyWallApproach(out Vector3 point, out Vector3 direction, out Vector3 up, out InfiniteCastleGrid wallBase)
     {
         NearbyLink nearest = null;
+        bool nearestHasCeiling = false;
         foreach (NearbyLink connection in nearbyLinks)
-            if (connection.corner && Vector3.Dot(connection.a.up, Vector3.up) > 0.99f &&
-                Mathf.Abs(Vector3.Dot(connection.b.up, Vector3.up)) < 0.01f && connection.link.root.activeSelf &&
-                (nearest == null || (connection.link.root.transform.position - player.position).sqrMagnitude <
-                    (nearest.link.root.transform.position - player.position).sqrMagnitude)) nearest = connection;
+        {
+            if (!connection.corner || Vector3.Dot(connection.a.up, Vector3.up) < .99f ||
+                Mathf.Abs(Vector3.Dot(connection.b.up, Vector3.up)) > .01f || !connection.link.root.activeSelf) continue;
+            bool hasCeiling = false;
+            foreach (NearbyLink next in nearbyLinks)
+                if (next.corner && next.a == connection.b && Vector3.Dot(next.b.up, Vector3.down) > .99f) { hasCeiling = true; break; }
+            if (nearest == null || (hasCeiling && !nearestHasCeiling) || (hasCeiling == nearestHasCeiling &&
+                (connection.link.root.transform.position - player.position).sqrMagnitude < (nearest.link.root.transform.position - player.position).sqrMagnitude))
+            { nearest = connection; nearestHasCeiling = hasCeiling; }
+        }
         if (nearest == null) { point = direction = up = default; wallBase = null; return false; }
         up = nearest.b.up;
         wallBase = nearest.b.zone;
@@ -818,7 +933,8 @@ public partial class DynamicInfinityCastle
         }
         error = null; return true;
     }
-    public bool TryGetNearbyCeilingApproach(out Vector3 point)
+    public bool TryGetNearbyCeilingApproach(out Vector3 point) => TryGetNearbyCeilingApproach(out point, out _);
+    public bool TryGetNearbyCeilingApproach(out Vector3 point, out Vector3 direction)
     {
         NearbyLink nearest = null;
         foreach (NearbyLink connection in nearbyLinks)
@@ -826,17 +942,31 @@ public partial class DynamicInfinityCastle
                 Vector3.Dot(connection.b.up, Vector3.down) > 0.99f &&
                 Mathf.Abs(Vector3.Dot(player.position - connection.a.surface, connection.a.up)) < 0.5f &&
                 (nearest == null || (connection.a.surface - player.position).sqrMagnitude < (nearest.a.surface - player.position).sqrMagnitude)) nearest = connection;
-        if (nearest == null) { point = default; return false; }
+        if (nearest == null) { point = direction = default; return false; }
+        if (nearest.link.root.activeSelf)
+        {
+            direction = nearest.link.root.transform.forward;
+            Vector3 start = nearest.link.root.transform.position - direction * nearest.link.landing.transform.localScale.z * .5f;
+            point = RoofPoint(nearest.a, start - direction * 1.2f) + nearest.a.up * .06f;
+            return true;
+        }
         Vector3 approach = nearest.turnLanding.root.transform.position + Vector3.up * 2f;
         Transform face = nearest.a.roof.transform;
         Vector3 local = face.InverseTransformPoint(approach);
         float edge = deckSize * 0.5f - 0.8f;
         local.x = Mathf.Clamp(local.x, -edge, edge); local.z = Mathf.Clamp(local.z, -edge, edge); local.y = 0f;
         point = face.TransformPoint(local) + nearest.a.up * 0.06f;
+        direction = Vector3.ProjectOnPlane(Vector3.down, nearest.a.up).normalized;
         return true;
     }
     public bool TryGetNearbyWalkConnection(Vector3 preference, out Vector3 start, out Vector3 end)
+        => TryGetNearbyWalkConnection(preference, out start, out end, out _);
+    public bool TryGetNearbyWalkConnection(Vector3 preference, out Vector3 start, out Vector3 end, out Transform destinationFrame)
+        => TryGetNearbyWalkConnection(preference, out start, out end, out _, out destinationFrame);
+    public bool TryGetNearbyWalkConnection(Vector3 preference, out Vector3 start, out Vector3 end, out Transform sourceFrame, out Transform destinationFrame)
     {
+        sourceFrame = null;
+        destinationFrame = null;
         NearbyNode current = null;
         bool currentBack = false;
         float nearest = float.PositiveInfinity;
@@ -866,6 +996,8 @@ public partial class DynamicInfinityCastle
             Vector3 direction = Vector3.ProjectOnPlane(destination.surface - source.surface, gravity.Up).normalized;
             start = OpenBalconyPoint(source, source.surface + direction * (DeckEdgeDistance(direction, source.piece.transform.rotation) - 1.4f)) + gravity.Up * 0.06f;
             end = OpenBalconyPoint(destination, destination.surface - direction * (DeckEdgeDistance(direction, destination.piece.transform.rotation) - 1.4f)) + gravity.Up * 0.06f;
+            sourceFrame = source.roof.transform;
+            destinationFrame = destination.roof.transform;
             return true;
         }
         start = end = default; return false;
@@ -880,7 +1012,7 @@ public partial class DynamicInfinityCastle
     {
         foreach (NearbyNode node in nearbyNodes)
         {
-            if (!node.route || SurfaceDistance(node, player.position) > deckSize * 2f) continue;
+            if (!node.route || node.kind == CastleDirectorPolicy.RouteKind.Jump || SurfaceDistance(node, player.position) > deckSize * 2f) continue;
             int exits = 0;
             foreach (NearbyLink connection in nearbyLinks) if (connection.a == node || connection.b == node) exits++;
             if (exits == 0) { error = "A nearby playable building has no connected exit: " + node.surface; return false; }

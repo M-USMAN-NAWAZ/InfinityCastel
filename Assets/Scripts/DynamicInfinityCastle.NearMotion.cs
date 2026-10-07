@@ -123,6 +123,7 @@ public partial class DynamicInfinityCastle
     {
         if (!connection.corner)
         {
+            if (connection.attached) { ConfigureAttachedConnection(connection, a, b, aRotation, bRotation); return; }
             ConfigureLink(connection.link, a, b, connection.AUp, CastleGeometry.Orientation(connection.AUp), aRotation, bRotation);
             return;
         }

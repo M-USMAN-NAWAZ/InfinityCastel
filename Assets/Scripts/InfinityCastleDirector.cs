@@ -27,13 +27,15 @@ public sealed class InfinityCastleDirector : MonoBehaviour
         if (castle.periodicRebuilding && castle.randomNearbyCastle)
         {
             if (rebuildTime < 0f) rebuildTime = RebuildDelay(castle);
-            rebuildTime -= dt;
+            // Zero stays due while asynchronous inference completes; negative means uninitialized.
+            rebuildTime = Mathf.Max(0f, rebuildTime - dt);
             if (rebuildTime <= 0f)
             {
-                if (castle.DirectRebuild(basis * axes[random.Next(axes.Length)]))
+                if (!castle.RequestLearnedPlan()) return;
+                if (castle.DirectRebuild(castle.useLearnedDirector ? castle.LearnedDirection : basis * axes[random.Next(axes.Length)]))
                 {
                     Phase = CastlePhase.Reweave;
-                    rebuildTime = RebuildDelay(castle); pauseTime = Mathf.Max(pauseTime, 10f);
+                    rebuildTime = RebuildDelay(castle) * castle.LearnedIntervalMultiplier; pauseTime = Mathf.Max(pauseTime, 10f);
                     return;
                 }
                 rebuildTime = 3f;
@@ -41,18 +43,19 @@ public sealed class InfinityCastleDirector : MonoBehaviour
         }
         pauseTime -= dt;
         if (pauseTime > 0f) return;
-        Phase = (CastlePhase)random.Next(4);
+        if (!castle.RequestLearnedPlan()) return;
+        Phase = castle.useLearnedDirector ? (CastlePhase)castle.LearnedMotion : (CastlePhase)random.Next(4);
         Vector3 direction = Phase switch
         {
             CastlePhase.Lift => up,
             CastlePhase.Reweave => -up,
             CastlePhase.Open => Vector3.ProjectOnPlane(playerVelocity, up).sqrMagnitude > 1f ?
                 Vector3.Cross(up, playerVelocity).normalized : basis * axes[random.Next(axes.Length)],
-            _ => basis * axes[random.Next(axes.Length)]
+            _ => castle.useLearnedDirector ? castle.LearnedDirection : basis * axes[random.Next(axes.Length)]
         };
         int count = Mathf.Min(availableShifts, random.Next(1, 3));
         for (int i = 0; i < count; i++) if (castle.DirectShift(direction)) CommandsIssued++;
-        pauseTime = Mathf.Max(7f, castle.shiftInterval) + (float)random.NextDouble() * 6f;
+        pauseTime = (Mathf.Max(7f, castle.shiftInterval) + (float)random.NextDouble() * 6f) * castle.LearnedIntervalMultiplier;
     }
     private float RebuildDelay(DynamicInfinityCastle castle)
     {

@@ -231,7 +231,9 @@ public partial class DynamicInfinityCastle
                 Vector3 b = connection.BSurface + (connection.b == node ? offset * fraction : Vector3.zero);
                 Quaternion aRotation = connection.a == node ? pose : connection.a.piece.transform.rotation;
                 Quaternion bRotation = connection.b == node ? pose : connection.b.piece.transform.rotation;
-                if (!connection.corner)
+                if (connection.corner && !FitsNearbyCorner(a, b, connection.AUp, connection.BUp, aRotation, bRotation))
+                { clear = false; break; }
+                if (!connection.corner && !connection.attached)
                 {
                     Vector3 direction = Vector3.ProjectOnPlane(b - a, connection.AUp).normalized;
                     float run = Vector3.ProjectOnPlane(b - a, connection.AUp).magnitude - DeckEdgeDistance(direction, aRotation) - DeckEdgeDistance(direction, bRotation) + 0.36f;

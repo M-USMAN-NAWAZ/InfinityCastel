@@ -1,0 +1,6 @@
+mlagents==1.1.0
+torch==2.2.2
+onnx==1.15.0
+numpy==1.23.5
+setuptools==80.9.0
+huggingface-hub==0.23.5
