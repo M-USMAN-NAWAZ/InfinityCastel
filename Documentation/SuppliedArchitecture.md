@@ -6,6 +6,12 @@ distant architecture at their authored scale. All runtime castle architecture
 shares a dark-timber, warm-shoji and aged-brass finish. The player and skybox are
 unchanged.
 
+The player starts on the connected native rooftop. The entrance back into the
+raised room, interior stairs and halls remains open. Each ordinary building wing
+also has a fitted, side-railed bridge to an original tower's measured native roof
+or balcony entrance. These towers are part of the moving connected group, not
+visual-only scenery. No extra base slab or perimeter walkway is added.
+
 ## Traversal
 
 - Rooms meet at real, capsule-clear doorways. Most connections need no separate
@@ -30,6 +36,9 @@ unchanged.
 
 DynamicInfinityCastle.Architecture.cs owns a fixed pool of 20 building wings,
 with all room, roof, corridor and stair parts created once, and eight bridge slots.
+Exterior bridges are also prewarmed once with their wings. The two emergency
+wings contain only a native room and rooftop, so a tall tower cannot obstruct
+their placement beneath a fall.
 The background retains its 192-object Android pool and four-layer window.
 
 Connected wings share a motion pivot, easing curve and duration. Rooms, corridors
@@ -72,6 +81,12 @@ The corner hall's retained interior wall is opened at the elbow in its derivativ
 so a player can actually walk between its arms; the original FBX is unchanged.
 Roof exits cut rail gates without adding another roof or a broad walkway.
 
+MobileArchitecture tower prefabs retain the shared original mesh as a concave
+collider. Their root is normalized without changing the visible geometry's world
+scale, and exterior entry anchors are measured against that solid geometry.
+Visible distant towers also have solid collision and orientation-relative roof
+gravity. The mobile bake no longer strips their collision.
+
 Port checks use a human capsule and actual penetration, including panels and
 ceilings. Connections align measured, often offset door and landing anchors,
 rather than the centre of a bounding-box edge. Stair rail tops are not landings.
@@ -91,11 +106,15 @@ Blender; originals are never edited.
 Tools/RunArchitectureValidation.ps1 -Mode Test runs full Unity checks: room
 entry/exit, corner and junction interiors, stairs, rooftop traversal, stable gravity
 entry and return, side rails in six gravity directions, indoor/outdoor jumps,
+walking onto an original tower and returning, solid collision on visible towers,
 carried shifts, exact connected doorway offsets, whole-castle motion, overlap
 clearance, six-direction fall recovery and fixed scene-object counts.
 
 -Mode Preview loads the saved Playground, including its player, camera and
 skybox, and renders player/overview screenshots under Temp.
+
+-Mode Exterior rebakes the original mobile tower prefabs with collision and
+measured native exterior anchors.
 
 Restart Play mode after these changes. The runtime prefab enables Use Building
 Traversal and assigns all five architecture references. The older perimeter-deck

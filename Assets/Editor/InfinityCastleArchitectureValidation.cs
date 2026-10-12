@@ -22,6 +22,12 @@ public static class InfinityCastleArchitectureValidation
     private static readonly HashSet<InfiniteCastleGrid> enteredZones = new();
     private static readonly HashSet<InfiniteCastleGrid> touchingZones = new();
 
+    public static void Exterior()
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        InfinityCastleMobileBake.Bake();
+    }
+
     [MenuItem("Infinity Castle/Use Playable Building Architecture")]
     public static void Install()
     {
@@ -75,7 +81,7 @@ public static class InfinityCastleArchitectureValidation
             castle.simultaneousShifts = 0;
             castle.InitializeCastle();
             Frame(12);
-            Check(castle.BuildingTraversalEnabled && player.Grounded, "Player starts inside a real, supported building room");
+            Check(castle.BuildingTraversalEnabled && player.Grounded, "Player starts on a native rooftop connected to interiors and exterior towers");
             Check(castle.unifiedArchitectureTheme && castle.themeWoodTexture != null && castle.themePaperTexture != null &&
                 world.GetComponentsInChildren<InfinityCastleBuilder>().SelectMany(piece => piece.GetComponentsInChildren<Renderer>())
                     .SelectMany(renderer => renderer.sharedMaterials).All(material => material != null &&
@@ -89,6 +95,9 @@ public static class InfinityCastleArchitectureValidation
                 world.GetComponentsInChildren<CastleArchitectureModule>().Any(module => module.name.StartsWith("DoubleStaresBase")),
                 "Direct building seams and both supplied stair layouts; optional bridges require free space");
             Check(!world.GetComponentsInChildren<CastleWalkableSurface>().Any(), "No active broad decks or generated perimeter paths");
+            foreach (InfinityCastleBuilder tower in world.GetComponentsInChildren<InfinityCastleBuilder>())
+                Check(tower.GetComponentsInChildren<Collider>().Any(collider => collider.enabled && !collider.isTrigger),
+                    "Visible building has solid collision: " + tower.name);
             CheckRailCollisions();
             int transforms = world.GetComponentsInChildren<Transform>(true).Length;
 
@@ -187,6 +196,23 @@ public static class InfinityCastleArchitectureValidation
             WalkTo(roofEntry + doorDirection * .8f);
             WalkTo(roomExit - doorDirection * 1.05f);
             Check(player.Grounded, "Re-enter the adjoining building interior from its native roof");
+            var startParts = castle.GetComponentsInChildren<InfinityCastleBuilder>().First(piece => piece.name == "Playable Building Wing 00")
+                .GetComponentsInChildren<CastleArchitectureModule>();
+            int exteriorIndex = Array.FindIndex(startParts, module => module.kind == CastleArchitectureModule.ModuleKind.Exterior);
+            Check(exteriorIndex >= 0, "Starting cluster has a connected original exterior tower");
+            int exteriorSource = -1;
+            for (int partIndex = 0; partIndex < exteriorIndex; partIndex++)
+                if (castle.TryGetBuildingSeam(0, partIndex, exteriorIndex, out _, out _)) { exteriorSource = partIndex; break; }
+            CrossSeam(0, exteriorSource, exteriorIndex, "Walk from the room rooftop over the railed bridge onto an original tower");
+            Check(player.Motor.GroundHit.collider != null && player.Motor.GroundHit.collider.transform.IsChildOf(startParts[exteriorIndex].transform),
+                "Player stands on the tower's authored mesh, not an added base or walkway");
+            castle.TryGetBuildingSeam(0, exteriorSource, exteriorIndex, out Vector3 exteriorExit, out Vector3 exteriorEntry);
+            Vector3 exteriorDirection = (exteriorEntry - exteriorExit).normalized;
+            input.jump = true; peak = player.transform.position.y;
+            for (int frame = 0; frame < 80; frame++) { Frame(1); peak = Mathf.Max(peak, player.transform.position.y); }
+            Check(peak > exteriorEntry.y + .8f && player.Grounded, "Jump and land on the original exterior tower");
+            WalkTo(exteriorExit - exteriorDirection * .85f);
+            Check(player.Grounded, "Walk back from the exterior tower to the interior cluster roof");
             player.GetComponent<InfinityGravityBody>().RestoreDefaultGravity();
             Teleport(start + Vector3.up * .08f);
 
@@ -211,18 +237,33 @@ public static class InfinityCastleArchitectureValidation
                 "Whole-castle wave moves nearby room/corridor groups: " + castle.LastRebuildNearMovedCount + " near, " + castle.LastRebuildMovedCount + " total");
             Check(castle.ValidateNoBuildingOverlaps(out overlap), "Rebuilt castle clearance: " + overlap);
 
+            int fallCase = 0;
             foreach (Vector3 up in new[] { Vector3.up, Vector3.right, Vector3.left, Vector3.forward, Vector3.back, Vector3.down })
             {
                 player.GetComponent<InfinityGravityBody>().SetGravity(-up, 22f, true, 8f);
-                Teleport(new Vector3(400, -500, 300) + up * 100f);
+                // Each case starts in empty space, not inside a previous case's differently oriented gravity field.
+                Teleport(new Vector3(400, -500, 300 + fallCase++ * 220f) + up * 100f);
                 bool caught = false;
                 for (int i = 0; i < 260; i++)
                 {
                     Frame(1);
                     if (player.Grounded && castle.IsCastleSurface(player.Motor.GroundHit.collider)) { caught = true; break; }
                 }
+                if (!caught)
+                {
+                    foreach (InfinityCastleBuilder piece in world.GetComponentsInChildren<InfinityCastleBuilder>(true))
+                        if (piece.name.StartsWith("Playable Building Wing"))
+                        {
+                            report.WriteLine("Fall diagnostic " + piece.name + ": active=" + piece.gameObject.activeSelf + ", bounds=" + piece.WorldBounds);
+                            if (piece.name.EndsWith("19"))
+                                foreach (InfinityCastleBuilder other in world.GetComponentsInChildren<InfinityCastleBuilder>())
+                                    if (other != piece && other.ReservedBounds.Intersects(piece.WorldBounds))
+                                        report.WriteLine("  Landing obstruction " + other.name + ": " + other.ReservedBounds);
+                        }
+                    report.Flush();
+                }
                 Check(caught && Vector3.Dot(castle.PlayerUp, up) > .99f,
-                    "Stream an actual building below a fall in gravity " + up + ": " + player.transform.position);
+                    "Stream an actual building below a fall in gravity " + up + ": " + player.transform.position + ", current up=" + castle.PlayerUp + ", grounded=" + player.Grounded);
                 Check(castle.ValidateNoBuildingOverlaps(out overlap), "Fall recovery clearance " + up + ": " + overlap);
             }
             Check(world.GetComponentsInChildren<Transform>(true).Length == transforms,

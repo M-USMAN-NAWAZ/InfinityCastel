@@ -363,8 +363,22 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         GameObject root = new($"{prefab.name} Castle Module {pieceSerial++:0000}"); root.transform.SetParent(buildingsParent, false);
         GameObject art = Instantiate(prefab, root.transform);
         art.transform.localPosition = Vector3.zero;
+        bool hasSolidCollision = false;
+        foreach (Collider collider in art.GetComponentsInChildren<Collider>(true))
+            if (!collider.isTrigger) { collider.enabled = true; hasSolidCollision = true; }
+        if (!hasSolidCollision)
+            foreach (MeshFilter filter in art.GetComponentsInChildren<MeshFilter>(true))
+                if (filter.sharedMesh != null) filter.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
         // The art's authored rotation and scale are never changed.
+        InfiniteCastleGrid exteriorGravity = null;
+        var exterior = art.GetComponent<CastleArchitectureModule>();
+        if (exterior != null && exterior.kind == CastleArchitectureModule.ModuleKind.Exterior)
+        {
+            exteriorGravity = CreateBuildingZone(art.transform, "Native Tower Roof Gravity", exterior.floorPoint, exterior.floorSize, 3f, true);
+            exteriorGravity.cornerTransition = false;
+        }
         InfinityCastleBuilder piece = root.AddComponent<InfinityCastleBuilder>(); piece.InitializePooledPiece(this);
+        if (exteriorGravity != null) piece.ConfigureMotionGravity(exteriorGravity, enableGravityZones);
         return piece;
     }
     internal Material PooledMaterial(Material source)
@@ -828,7 +842,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             if (zone != null)
             {
                 zone.gravityDirection = -piece.transform.up;
-                zone.enabled = enableGravityZones && Vector3.Dot(piece.transform.up, Vector3.up) < 0.99f;
+                zone.enabled = enableGravityZones;
             }
             if (initialized)
             {
@@ -850,7 +864,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         gravity.ResolveGravity();
         if (dt > 0f)
         {
-            Vector3 velocity = (player.position - previousPlayerPosition) / dt;
+            Vector3 displacement = player.position - previousPlayerPosition;
+            // Teleports are not horizontal momentum for fall prediction.
+            Vector3 velocity = displacement.sqrMagnitude > 144f ? Vector3.zero : displacement / dt;
             playerVelocity = Vector3.ClampMagnitude(Vector3.ProjectOnPlane(velocity, gravity.Up), 12f) +
                 gravity.Up * Mathf.Clamp(Vector3.Dot(velocity, gravity.Up), -45f, 45f);
         }

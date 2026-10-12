@@ -1,4 +1,4 @@
-param([ValidateSet('Test', 'Preview', 'Install')][string]$Mode = 'Test')
+param([ValidateSet('Test', 'Preview', 'Install', 'Exterior')][string]$Mode = 'Test')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $root 'Temp/ArchitectureValidation'
@@ -17,6 +17,10 @@ if ($Mode -ne 'Preview') { $arguments += @('-nographics', '-quit') }
 $process = Start-Process 'D:/for unity/6000.0.51f1/Editor/Unity.exe' -WindowStyle Hidden -PassThru -ArgumentList $arguments
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "Architecture $Mode failed. See $log" }
+if ($Mode -eq 'Exterior') {
+    & robocopy "$project/Assets/InfinityCastle/MobileArchitecture" "$root/Assets/InfinityCastle/MobileArchitecture" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'Exterior prefab copy failed.' }
+}
 Copy-Item -LiteralPath "$project/Assets/prefabs/InfinityCastleRuntime.prefab" -Destination "$root/Assets/prefabs/InfinityCastleRuntime.prefab"
 foreach ($file in @('Assets/Scripts/DynamicInfinityCastle.Architecture.cs.meta', 'Assets/Editor/InfinityCastleArchitectureValidation.cs.meta')) {
     if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }

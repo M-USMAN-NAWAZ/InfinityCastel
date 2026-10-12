@@ -109,7 +109,7 @@ public static class CastleCurrentModelImporter
         root.name = name; return root;
     }
 
-    private static List<CastleArchitectureModule.Port> FindPorts(GameObject root, Bounds bounds, bool stair)
+    public static List<CastleArchitectureModule.Port> FindPorts(GameObject root, Bounds bounds, bool stair, float floorHeight = 0f)
     {
         List<CastleArchitectureModule.Port> ports = new();
         Collider[] colliders = root.GetComponentsInChildren<Collider>();
@@ -137,7 +137,7 @@ public static class CastleCurrentModelImporter
                 for (int inset = 0; inset < 5 && !usable; inset++)
                 {
                     Vector3 inside = at - outward * (inset * .14f);
-                    Ray ray = new(new Vector3(inside.x, stair ? bounds.max.y + .5f : .45f, inside.z), Vector3.down);
+                    Ray ray = new(new Vector3(inside.x, stair ? bounds.max.y + .5f : floorHeight + .45f, inside.z), Vector3.down);
                     float nearest = float.PositiveInfinity; RaycastHit surface = default;
                     foreach (Collider collider in colliders)
                         if (collider.Raycast(ray, out RaycastHit hit, stair ? bounds.size.y + 1f : .85f) && hit.distance < nearest)

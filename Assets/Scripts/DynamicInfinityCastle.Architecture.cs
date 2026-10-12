@@ -31,6 +31,7 @@ public partial class DynamicInfinityCastle
     {
         public int a, b;
         public Vector3 exit, entry;
+        public Link bridge;
     }
     private sealed class BuildingJoin
     {
@@ -89,6 +90,17 @@ public partial class DynamicInfinityCastle
         BuildingWing first = buildingWings[0];
         PlaceBuildingWing(first, origin, Quaternion.identity);
         player.position = first.Floor + Vector3.up * .08f;
+        foreach (BuildingPart part in first.parts)
+            if (part.module.kind == CastleArchitectureModule.ModuleKind.Roof)
+            { player.position = part.module.WorldFloor + Vector3.up * .08f; break; }
+        foreach (BuildingSeam seam in first.seams)
+            if (seam.bridge != null && first.parts[seam.b].module.kind == CastleArchitectureModule.ModuleKind.Exterior)
+            {
+                Vector3 exit = first.parts[seam.a].module.transform.TransformPoint(seam.exit);
+                Vector3 entry = first.parts[seam.b].module.transform.TransformPoint(seam.entry);
+                player.position = entry + (entry - exit).normalized * 1.05f + Vector3.up * .08f;
+                break;
+            }
         gravity.RestoreDefaultGravity(); gravity.retainZoneGravityInAir = true;
         Physics.SyncTransforms();
 
@@ -234,7 +246,11 @@ public partial class DynamicInfinityCastle
             }
         }
         Part(roomPrefab, Vector3.zero, Quaternion.identity);
-        if (serial == 0)
+        if (serial >= architectureWingPoolSize - 2)
+        {
+            Rooftop(0);
+        }
+        else if (serial == 0)
         {
             Join(0, roomPrefab, DirectionPort(wing.parts[0].module, Vector3.left), matchFacing: true);
             Join(0, roofAccessStairPrefab, DirectionPort(wing.parts[0].module, Vector3.forward), stair: true);
@@ -272,11 +288,46 @@ public partial class DynamicInfinityCastle
             Rooftop(roofRoom);
             GravityRoom(roofRoom);
         }
+        bool exteriorAdded = false;
+        for (int source = wing.parts.Count - 1; serial < architectureWingPoolSize - 2 && source >= 0 && !exteriorAdded; source--)
+        {
+            BuildingPart part = wing.parts[source];
+            if (!part.reachable || part.module.kind == CastleArchitectureModule.ModuleKind.Stair ||
+                Vector3.Dot(part.module.transform.up, Vector3.up) < .99f || flatStair == null) continue;
+            foreach (var exit in part.module.ports)
+            {
+                if (wing.seams.Exists(seam => seam.a == source && (seam.exit - exit.position).sqrMagnitude < .12f ||
+                    seam.b == source && (seam.entry - exit.position).sqrMagnitude < .12f)) continue;
+                for (int attempt = 0; attempt < mobileDecorationPrefabs.Count && !exteriorAdded; attempt++)
+                {
+                    GameObject prefab = mobileDecorationPrefabs[(serial + attempt) % mobileDecorationPrefabs.Count];
+                    var tower = prefab.GetComponent<CastleArchitectureModule>();
+                    if (tower == null || tower.ports.Length == 0) continue;
+                    foreach (var entry in tower.ports)
+                    {
+                        Vector3 normal = part.module.transform.localRotation * exit.outward;
+                        Quaternion turn = Quaternion.AngleAxis(Vector3.SignedAngle(entry.outward, -normal, Vector3.up), Vector3.up);
+                        Vector3 position = part.module.transform.localPosition + part.module.transform.localRotation * exit.position +
+                            normal * flatStair.run - turn * entry.position;
+                        if (!PartSpaceFree(prefab, position, turn)) continue;
+                        int added = Part(prefab, position, turn);
+                        Link bridge = CreateLink(serial);
+                        ConfigureLink(bridge, part.module.transform.TransformPoint(exit.position),
+                            wing.parts[added].module.transform.TransformPoint(entry.position), Vector3.up, turn, endpoints: true);
+                        bridge.root.transform.SetParent(root.transform, true);
+                        wing.seams.Add(new BuildingSeam { a = source, b = added, exit = exit.position, entry = entry.position, bridge = bridge });
+                        exteriorAdded = true;
+                        break;
+                    }
+                }
+                if (exteriorAdded) break;
+            }
+        }
         // Keep the double staircase as an optional upper landing; its lower edge is not an entrance.
         CastleArchitectureModule landing = doubleStairPrefab.GetComponent<CastleArchitectureModule>();
         var landingEntry = UpperPort(landing);
         bool landingAdded = false;
-        for (int source = 0; serial >= 6 && source < wing.parts.Count && !landingAdded; source++)
+        for (int source = 0; serial >= 6 && serial < architectureWingPoolSize - 2 && source < wing.parts.Count && !landingAdded; source++)
         {
             BuildingPart part = wing.parts[source];
             if (!part.reachable || part.module.kind != CastleArchitectureModule.ModuleKind.Room ||
@@ -351,6 +402,14 @@ public partial class DynamicInfinityCastle
 
     private void UpdateBuildingZones(BuildingWing wing)
     {
+        foreach (BuildingSeam seam in wing.seams)
+            if (seam.bridge != null)
+            {
+                InfiniteCastleGrid zone = seam.bridge.root.GetComponent<InfiniteCastleGrid>();
+                zone.gravityDirection = -wing.Up;
+                zone.enabled = enableGravityZones;
+                seam.bridge.bounds = ConnectionVisualBounds(seam.bridge);
+            }
         foreach (BuildingPart part in wing.parts)
         {
             part.floorZone.gravityDirection = -part.module.transform.up; part.floorZone.enabled = enableGravityZones;
@@ -367,12 +426,23 @@ public partial class DynamicInfinityCastle
     {
         // Keep two growth slots as well as two emergency landing slots out of distant fill.
         int reserve = emergency ? 0 : 4;
-        for (int i = 0; i < buildingWings.Count - reserve; i++) if (!buildingWings[i].active) return buildingWings[i];
+        if (mainCamera != null) GeometryUtility.CalculateFrustumPlanes(mainCamera, cameraPlanes);
         if (emergency)
+        {
             for (int i = buildingWings.Count - 2; i < buildingWings.Count; i++) if (!buildingWings[i].active) return buildingWings[i];
+            for (int i = buildingWings.Count - 2; i < buildingWings.Count; i++)
+            {
+                BuildingWing wing = buildingWings[i];
+                float separation = (wing.Floor - player.position).sqrMagnitude;
+                if (wing.piece.IsMoving || IsBuildingSupport(wing) || separation < 70f * 70f) continue;
+                if (mainCamera != null && separation < 160f * 160f && GeometryUtility.TestPlanesAABB(cameraPlanes, wing.piece.WorldBounds)) continue;
+                RetireBuildingWing(wing);
+                return wing;
+            }
+        }
+        for (int i = 0; i < buildingWings.Count - reserve; i++) if (!buildingWings[i].active) return buildingWings[i];
         BuildingWing furthest = null;
         float distance = emergency ? 45f * 45f : 70f * 70f;
-        if (mainCamera != null) GeometryUtility.CalculateFrustumPlanes(mainCamera, cameraPlanes);
         foreach (BuildingWing wing in buildingWings)
         {
             if (!wing.active || wing.piece.IsMoving || wing == buildingLanding || IsBuildingSupport(wing)) continue;
@@ -617,7 +687,7 @@ public partial class DynamicInfinityCastle
         {
             foreach (BuildingPart part in support.parts)
             {
-                if (part.module.kind == CastleArchitectureModule.ModuleKind.Stair) continue;
+                if (!part.reachable || part.module.kind == CastleArchitectureModule.ModuleKind.Stair) continue;
                 Vector3 local = part.module.transform.InverseTransformPoint(player.position);
                 bool rooftop = part.module.kind == CastleArchitectureModule.ModuleKind.Room && Mathf.Abs(local.y - part.module.roofPoint.y) < .5f;
                 if (!rooftop && Mathf.Abs(local.y - part.module.floorPoint.y) > .5f) continue;

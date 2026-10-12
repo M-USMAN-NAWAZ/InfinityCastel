@@ -4,7 +4,7 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class CastleArchitectureModule : MonoBehaviour
 {
-    public enum ModuleKind { Room, Corridor, Roof, Stair }
+    public enum ModuleKind { Room, Corridor, Roof, Stair, Exterior }
     [System.Serializable]
     public struct Port
     {
