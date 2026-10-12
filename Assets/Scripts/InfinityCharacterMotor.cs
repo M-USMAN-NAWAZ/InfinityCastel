@@ -92,6 +92,10 @@ public sealed class InfinityCharacterMotor : MonoBehaviour
             // A convex turn pivots onto the next face rather than leaving the feet behind its collider.
             float gap = Vector3.Dot(transform.position - surface.SurfacePoint, transform.up);
             if (gap < skin && gap > -height) transform.position += transform.up * (skin - gap);
+            // A return corner completes the pivot onto the real roof, inside its open rail gate.
+            Vector3 tangent = Vector3.ProjectOnPlane(transform.position - surface.SurfacePoint, transform.up);
+            if (surface.cornerSnapDistance > 0f && tangent.magnitude <= surface.cornerSnapDistance)
+                transform.position -= tangent;
         }
         ClearSupport();
     }

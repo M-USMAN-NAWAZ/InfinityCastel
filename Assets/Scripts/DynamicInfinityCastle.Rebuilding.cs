@@ -22,12 +22,12 @@ public partial class DynamicInfinityCastle
     private readonly List<(NearbyLink link, Bounds sweep)> rebuildLinkSweeps = new();
     private Vector3 rebuildDirection;
     private int nearbyShapeRevision, rebuildCursor, rebuildPass, rebuildSequence;
-    public bool IsRebuilding => rebuildPhase != RebuildPhase.Idle;
+    public bool IsRebuilding => rebuildPhase != RebuildPhase.Idle || buildingWaveActive;
     public int MovingBuildingCount
     {
         get
         {
-            int count = NearbyMovingCount;
+            int count = NearbyMovingCount + BuildingMovingCount;
             foreach (InfinityCastleBuilder piece in decor.Values) if (piece.IsMoving) count++;
             foreach (Node node in nodes.Values) if (node.piece.IsMoving) count++;
             return count;
@@ -60,6 +60,10 @@ public partial class DynamicInfinityCastle
     }
     public bool TryGetRebuildingSurface(out Vector3 point, out Vector3 up, bool coordinatedOnly = false)
     {
+        if (BuildingTraversalEnabled)
+            foreach (BuildingWing wing in buildingWings)
+                if (wing.active && wing.piece.IsMoving && (!coordinatedOnly || GroupSize(wing) > 1))
+                { point = wing.Floor + wing.Up * .08f; up = wing.Up; return true; }
         foreach (RebuildCandidate candidate in rebuildCandidates)
             if (candidate.node != null && (!coordinatedOnly || candidate.district > 0) &&
                 IsCurrentRebuildCandidate(candidate) && candidate.started && candidate.piece.IsMoving)
@@ -68,7 +72,8 @@ public partial class DynamicInfinityCastle
     }
     public bool DirectRebuild(Vector3 preferredDirection)
     {
-        if (!initialized || !randomNearbyCastle || IsRebuilding || controller == null || !controller.Grounded || HasPendingLayout) return false;
+        if (!initialized || (!randomNearbyCastle && !BuildingTraversalEnabled) || IsRebuilding || controller == null || !controller.Grounded || HasPendingLayout) return false;
+        if (BuildingMovingCount > 0) return false;
         foreach (NearbyNode node in nearbyNodes) if (node.piece.IsMoving) return false;
         foreach (InfinityCastleBuilder piece in decor.Values) if (piece.IsMoving) return false;
         rebuildDirection = preferredDirection;
@@ -98,6 +103,7 @@ public partial class DynamicInfinityCastle
         LastRebuildMovedCount = LastRebuildRotatedCount = LastRebuildBlockedCount = 0;
         LastRebuildDistrictCount = LastRebuildDistrictBuildingCount = 0;
         LastRebuildNearMovedCount = LastRebuildCornerMovedCount = 0;
+        if (BuildingTraversalEnabled) BeginBuildingWave(preferredDirection);
         if (rebuildCandidates.Count == 0) return false;
         rebuildCursor = rebuildPass = 0; rebuildSequence++;
         LastRebuildUp = gravity.Up;
@@ -161,7 +167,7 @@ public partial class DynamicInfinityCastle
             {
                 budget--;
                 bool success = candidate.node != null ? TryRearrangeDistrict(candidate.node) || TryRearrangeNearby(candidate.node) :
-                    TryRearrangeDecor(candidate.piece, candidate.cell);
+                    TryRearrangeDecorDistrict(candidate.piece, candidate.cell) || TryRearrangeDecor(candidate.piece, candidate.cell);
                 if (success)
                 {
                     candidate = rebuildCandidates[rebuildCursor];
@@ -195,18 +201,19 @@ public partial class DynamicInfinityCastle
     {
         if (!decor.TryGetValue(cell, out InfinityCastleBuilder current) || current != piece || piece.IsMoving) return false;
         Vector3 centre = piece.WorldBounds.center;
-        Vector3 anchor = origin + (Vector3)cell * decorSpacing;
+        Vector3 anchor = DecorAnchor(cell);
         int first = Mathf.FloorToInt(Hash(cell, rebuildSequence * 113) * 6f);
-        for (int attempt = 0; attempt < 18; attempt++)
+        for (int attempt = 0; attempt < 24; attempt++)
         {
-            Vector3 offset = directions[(first + attempt) % 6] * (attempt < 12 ? rebuildTravel : rebuildTravel * 0.35f);
+            float travel = attempt < 6 ? rebuildTravel : attempt < 18 ? rebuildTravel * .35f : Mathf.Min(3f, distantBuildingGap * .25f);
+            Vector3 offset = directions[(first + attempt) % 6] * travel;
             Vector3 relative = centre + offset - anchor;
-            float envelope = decorSpacing * 0.3f;
-            relative = new Vector3(Mathf.Clamp(relative.x, -envelope, envelope), Mathf.Clamp(relative.y, -envelope, envelope), Mathf.Clamp(relative.z, -envelope, envelope));
+            Vector3 envelope = decorGridSpacing * .3f;
+            relative = new Vector3(Mathf.Clamp(relative.x, -envelope.x, envelope.x), Mathf.Clamp(relative.y, -envelope.y, envelope.y), Mathf.Clamp(relative.z, -envelope.z, envelope.z));
             offset = anchor + relative - centre;
             if (offset.sqrMagnitude < 0.25f) continue;
             Vector3 axis = attempt < 6 && Hash(cell, rebuildSequence * 113 + 1) < 0.35f ? piece.transform.right : piece.transform.up;
-            float angle = attempt < 12 ? (Hash(cell, rebuildSequence * 113 + 2) < 0.5f ? 90f : -90f) : 0f;
+            float angle = attempt < 12 ? (Hash(cell, rebuildSequence * 113 + 2) < 0.5f ? 1f : -1f) * (attempt < 6 ? 90f : 15f) : 0f;
             Quaternion rotation = Quaternion.AngleAxis(angle, axis) * piece.transform.rotation;
             Bounds sweep = piece.SweepRearrange(centre, offset, rotation);
             if (!IsSpaceFree(sweep, piece)) continue;
@@ -221,6 +228,7 @@ public partial class DynamicInfinityCastle
         foreach (NearbyLink connection in nearbyLinks)
         {
             if (connection.a != node && connection.b != node) continue;
+            if (connection.corner && Quaternion.Angle(node.piece.transform.rotation, rotation) > .02f) return false;
             Bounds swept = connection.reservation;
             bool clear = true;
             for (int sample = 1; sample <= 16; sample++)
@@ -290,6 +298,7 @@ public partial class DynamicInfinityCastle
     private void CompleteCastleRebuild()
     {
         if (rebuildPhase != RebuildPhase.Moving) return;
+        if (buildingWaveActive) return;
         foreach (RebuildCandidate candidate in rebuildCandidates) if (IsCurrentRebuildCandidate(candidate) && candidate.piece.IsMoving) return;
         if (rebuildPass++ < 2)
         { rebuildCursor = 0; rebuildPhase = RebuildPhase.Planning; RefreshRearrangedConnections(); return; }
@@ -308,9 +317,11 @@ public partial class DynamicInfinityCastle
             if (candidate.started && Quaternion.Angle(candidate.rotation, candidate.piece.transform.rotation) > 1f) rotated++;
             if (candidate.node != null) { candidate.node.rebuilding = false; candidate.node.anchor = candidate.node.roof.transform.position; }
         }
-        LastRebuildMovedCount = moved; LastRebuildRotatedCount = rotated; LastRebuildBlockedCount = LastRebuildSelectedCount - moved;
-        LastRebuildNearMovedCount = near; LastRebuildCornerMovedCount = corners;
-        RebuiltBuildingCount += moved; RebuiltRouteCount += routes; RebuildGeneration++;
+        LastRebuildMovedCount = moved + (BuildingTraversalEnabled ? LastRebuildNearMovedCount : 0);
+        LastRebuildRotatedCount = rotated + (BuildingTraversalEnabled ? LastRebuildRotatedCount : 0);
+        LastRebuildBlockedCount = LastRebuildSelectedCount - LastRebuildMovedCount;
+        LastRebuildNearMovedCount = BuildingTraversalEnabled ? LastRebuildNearMovedCount : near; LastRebuildCornerMovedCount = corners;
+        RebuiltBuildingCount += LastRebuildMovedCount; RebuiltRouteCount += routes; RebuildGeneration++;
         RebuiltDistrictCount += LastRebuildDistrictCount;
         nearbyShapeRevision = rebuildSequence;
         rebuildPhase = RebuildPhase.Idle;

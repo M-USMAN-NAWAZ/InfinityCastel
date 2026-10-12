@@ -4,20 +4,57 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class CastleWalkableSurface : MonoBehaviour
 {
-    private static readonly Dictionary<Vector3, Mesh> meshes = new();
+    private static readonly Dictionary<(float, float, bool, float, float), Mesh> meshes = new();
     private BoxCollider floor;
+    private readonly BoxCollider[] perimeterFloors = new BoxCollider[4];
     public float Width { get; private set; }
     public float Depth { get; private set; }
-    public Bounds WorldBounds => floor.bounds;
+    public bool HasCentralOpening { get; private set; }
+    public Bounds WorldBounds => CastleGeometry.TransformBounds(new Bounds(Vector3.down * .12f,
+        new Vector3(Width, .24f, Depth)), transform.localToWorldMatrix);
 
-    public void Initialize(float width, float depth, Material wood, bool railings)
+    public float DistanceToSurface(Vector3 point)
+    {
+        Vector3 local = transform.InverseTransformPoint(point);
+        float nearest = float.PositiveInfinity;
+        foreach (BoxCollider board in perimeterFloors)
+        {
+            if (board == null || !board.enabled) continue;
+            Vector3 half = board.size * .5f;
+            Vector3 face = new(Mathf.Clamp(local.x, board.center.x - half.x, board.center.x + half.x), 0f,
+                Mathf.Clamp(local.z, board.center.z - half.z, board.center.z + half.z));
+            nearest = Mathf.Min(nearest, (point - transform.TransformPoint(face)).sqrMagnitude);
+        }
+        return Mathf.Sqrt(nearest);
+    }
+
+    public void Initialize(float width, float depth, Material wood, bool railings) =>
+        InitializeGeometry(width, depth, wood, railings, Vector2.zero);
+    public void InitializePerimeter(float width, float depth, Vector2 opening, Material wood, bool railings) =>
+        InitializeGeometry(width, depth, wood, railings,
+            new Vector2(Mathf.Clamp(opening.x, 1f, width - 2f), Mathf.Clamp(opening.y, 1f, depth - 2f)));
+    private void InitializeGeometry(float width, float depth, Material wood, bool railings, Vector2 opening)
     {
         Width = width; Depth = depth;
-        Vector3 key = new(width, depth, railings ? 1f : 0f);
+        HasCentralOpening = opening.x > 0f && opening.y > 0f;
+        var key = (width, depth, railings, opening.x, opening.y);
+        var centres = new Vector3[4]; var sizes = new Vector3[4];
+        int boards = HasCentralOpening ? 4 : 1;
+        if (HasCentralOpening)
+        {
+            float side = (width - opening.x) * .5f, end = (depth - opening.y) * .5f;
+            centres[0] = new Vector3(-(opening.x + side) * .5f, -.12f, 0f);
+            centres[1] = new Vector3((opening.x + side) * .5f, -.12f, 0f);
+            centres[2] = new Vector3(0f, -.12f, -(opening.y + end) * .5f);
+            centres[3] = new Vector3(0f, -.12f, (opening.y + end) * .5f);
+            sizes[0] = sizes[1] = new Vector3(side, .24f, depth);
+            sizes[2] = sizes[3] = new Vector3(opening.x, .24f, end);
+        }
+        else { centres[0] = Vector3.down * .12f; sizes[0] = new Vector3(width, .24f, depth); }
         if (!meshes.TryGetValue(key, out Mesh mesh))
         {
             var vertices = new List<Vector3>(); var triangles = new List<int>(); var uv = new List<Vector2>();
-            AddBox(vertices, triangles, uv, new Vector3(0f, -0.12f, 0f), new Vector3(width, 0.24f, depth));
+            for (int board = 0; board < boards; board++) AddBox(vertices, triangles, uv, centres[board], sizes[board]);
             if (railings)
             {
                 for (int side = 0; side < 4; side++)
@@ -40,7 +77,7 @@ public sealed class CastleWalkableSurface : MonoBehaviour
                     }
                 }
             }
-            mesh = new Mesh { name = railings ? "Castle Timber Balcony" : "Castle Timber Deck" };
+            mesh = new Mesh { name = HasCentralOpening ? "Castle Perimeter Walkway" : railings ? "Castle Timber Balcony" : "Castle Timber Deck" };
             mesh.SetVertices(vertices); mesh.SetTriangles(triangles, 0); mesh.SetUVs(0, uv); mesh.RecalculateNormals(); mesh.RecalculateBounds();
             meshes.Add(key, mesh);
         }
@@ -49,7 +86,17 @@ public sealed class CastleWalkableSurface : MonoBehaviour
         MeshRenderer renderer = GetComponent<MeshRenderer>(); if (renderer == null) renderer = gameObject.AddComponent<MeshRenderer>();
         renderer.sharedMaterial = wood;
         floor = GetComponent<BoxCollider>(); if (floor == null) floor = gameObject.AddComponent<BoxCollider>();
-        floor.center = new Vector3(0f, -0.12f, 0f); floor.size = new Vector3(width, 0.24f, depth);
+        perimeterFloors[0] = floor;
+        for (int board = 0; board < perimeterFloors.Length; board++)
+        {
+            if (board < boards)
+            {
+                if (perimeterFloors[board] == null) perimeterFloors[board] = gameObject.AddComponent<BoxCollider>();
+                perimeterFloors[board].enabled = true;
+                perimeterFloors[board].center = centres[board]; perimeterFloors[board].size = sizes[board];
+            }
+            else if (perimeterFloors[board] != null) perimeterFloors[board].enabled = false;
+        }
         // Open ports are five metres wide; rail colliders do not block attached stairs.
         if (railings)
             for (int side = 0; side < 4; side++)

@@ -27,6 +27,7 @@ public static class InfinityCastleValidation
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             TestGravityMotor();
             TestGravityCamera();
+            TestPerimeterWalkways();
             TestZones();
             TestRigidbodyGravity();
             TestMobileInput();
@@ -190,6 +191,45 @@ public static class InfinityCastleValidation
     private static void Step(ThirdPersonController player, int frames)
     {
         for (int i = 0; i < frames; i++) player.Simulate(1f / 60f);
+    }
+    private static void TestPerimeterWalkways()
+    {
+        GameObject root = new("Open Perimeter Validation");
+        CastleWalkableSurface surface = root.AddComponent<CastleWalkableSurface>();
+        surface.InitializePerimeter(24f, 28f, new Vector2(16f, 20f), null, false);
+        BoxCollider[] floors = root.GetComponents<BoxCollider>();
+        Check(surface.HasCentralOpening && floors.Length == 4, "Perimeter walkways use four physical strips, not a full base");
+        InfiniteCastleGrid zone = root.AddComponent<InfiniteCastleGrid>();
+        zone.Configure(Vector3.down, Vector3.up * 2f, new Vector3(24f, 5f, 28f), 1, true);
+        foreach (Vector3 up in new[] { Vector3.up, Vector3.down, Vector3.right, Vector3.left, Vector3.forward, Vector3.back })
+        {
+            root.transform.rotation = CastleGeometry.Orientation(up); Physics.SyncTransforms();
+            Check(zone.DistanceToSurface(root.transform.position + up) > 8f &&
+                Mathf.Abs(zone.DistanceToSurface(root.transform.TransformPoint(new Vector3(10f, 1f, 0f))) - 1f) < .001f,
+                "Gravity distance follows actual strips, not the empty centre " + up);
+            Ray throughOpening = new(root.transform.position + up * 2f, -up);
+            Check(floors.All(floor => !floor.Raycast(throughOpening, out _, 4f)), "No visible or invisible base across the centre " + up);
+            foreach (Vector3 port in new[] { new Vector3(10f, 0f, 0f), new Vector3(-10f, 0f, 0f), new Vector3(0f, 0f, 12f), new Vector3(0f, 0f, -12f) })
+            {
+                ThirdPersonController player = Player(root.transform.TransformPoint(port) + up * .06f);
+                player.GetComponent<InfinityGravityBody>().SetGravity(-up, 22f, true, 8f);
+                Step(player, 60); Check(player.Grounded, "Perimeter port supports the player " + up + " / " + port);
+                float height = Vector3.Dot(player.transform.position, up), peak = height;
+                player.GetComponent<StarterAssetsInputs>().jump = true;
+                for (int frame = 0; frame < 90; frame++) { Step(player, 1); peak = Mathf.Max(peak, Vector3.Dot(player.transform.position, up)); }
+                Check(player.Grounded && peak - height > .9f, "Perimeter port jump and landing " + up + " / " + port);
+                UnityEngine.Object.DestroyImmediate(player.gameObject);
+            }
+            ThirdPersonController crossing = Player(root.transform.TransformPoint(new Vector3(10f, 0f, 12f)) + up * .06f);
+            crossing.GetComponent<InfinityGravityBody>().SetGravity(-up, 22f, true, 8f); Step(crossing, 60);
+            Vector3 direction = -root.transform.right, forward = crossing.MovementForward;
+            crossing.GetComponent<StarterAssetsInputs>().move = new Vector2(Vector3.Dot(direction, Vector3.Cross(up, forward).normalized), Vector3.Dot(direction, forward));
+            Vector3 before = crossing.transform.position; Step(crossing, 170);
+            Check(crossing.Grounded && Vector3.Dot(crossing.transform.position - before, direction) > 8f,
+                "Walking crosses a perimeter strip join without sticking " + up);
+            UnityEngine.Object.DestroyImmediate(crossing.gameObject);
+        }
+        UnityEngine.Object.DestroyImmediate(root);
     }
     private static void TestGravityMotor()
     {
@@ -368,6 +408,10 @@ public static class InfinityCastleValidation
             "Original imported architecture textures resolve from the runtime prefab");
         Check(castle.IsInitialized && castle.ActiveBuildingCount > 80,
             "Random pooled castle surrounds the player");
+        Check(castle.denseDistantArchitecture && castle.DistantSpacing.x < castle.LayerSpacing * .5f &&
+            castle.DistantSpacing.z < castle.LayerSpacing * .5f && castle.DistantArchitectureCount >= 150,
+            "Footprint-packed distant layers fill the fixed pool: " + castle.DistantArchitectureCount + " towers, spacing=" + castle.DistantSpacing);
+        Check(castle.ValidateDenseArchitecture(out string density), "No added plates under distant towers or playable walkway centres: " + density);
         Check(castle.ValidateNoBuildingOverlaps(out string reason), "Initial building clearance: " + reason);
         Check(castle.ValidateNearbyConnectionGravity(out string connectionError), "Same-gravity stairs cover both entrances: " + connectionError);
         Check(castle.ActiveConnectionCount > 32, "Nearby buildings have connected walking routes; links=" + castle.ActiveConnectionCount);
@@ -488,7 +532,8 @@ public static class InfinityCastleValidation
         int objects = castle.GetComponentsInChildren<Transform>(true).Length;
         for (int leg = 0; leg < travelLegs; leg++)
         {
-            Vector3 preference = (Vector3.forward + Vector3.right).normalized;
+            Vector3 outward = Vector3.ProjectOnPlane(player.transform.position - initial, gravity.Up);
+            Vector3 preference = outward.sqrMagnitude > 1f ? outward.normalized : (Vector3.forward + Vector3.right).normalized;
             Check(castle.TryGetNearbyWalkConnection(preference, out Vector3 start, out Vector3 end, out Transform sourceFrame, out Transform destinationFrame), "Connected walking exit after travel " + leg);
             Vector3 sourceLocal = sourceFrame.InverseTransformPoint(start);
             Vector3 destinationLocal = destinationFrame.InverseTransformPoint(end);
@@ -569,16 +614,23 @@ public static class InfinityCastleValidation
         Check(Vector3.Dot(gravity.Up, Vector3.down) > 0.99f && player.Grounded, "Walking around the next corner enters inverted gravity naturally; position=" +
             player.transform.position + ", up=" + gravity.Up + ", grounded=" + player.Grounded + ", block=" + player.Motor.LastStepBlock);
         int verifiedFrames = 0;
+        Vector3 gravityNeighborhood = player.transform.position;
         foreach (Vector3 up in new[] { Vector3.left, Vector3.right, Vector3.forward, Vector3.back, Vector3.down })
         {
-            if (!castle.TryGetNearbyGravitySurface(up, out Vector3 point, out InfiniteCastleGrid zone, up == Vector3.right))
-            { results.WriteLine("INFO No base-balcony branch currently uses " + up + "; an unreachable lower face is not substituted."); continue; }
+            // Compare each independent gravity fixture against the same streamed neighborhood.
+            player.transform.position = gravityNeighborhood; player.ResetFallVelocity();
+            if (!castle.TryGetNearbyGravitySurface(up, out Vector3 point, out InfiniteCastleGrid zone, up == Vector3.right) ||
+                (point - player.transform.position).sqrMagnitude >= castle.LayerSpacing * castle.LayerSpacing * 4f)
+            { results.WriteLine("INFO No close base-balcony branch currently uses " + up + "; a distant or unreachable face is not substituted."); continue; }
             verifiedFrames++;
-            Check(Vector3.Dot(zone.transform.up, up) > 0.99f && zone.name == "Connected Castle Base",
+            Check(Vector3.Dot(zone.transform.up, up) > 0.99f && zone.GetComponent<CastleWalkableSurface>() != null &&
+                (!castle.perimeterWalkways || zone.GetComponent<CastleWalkableSurface>().HasCentralOpening),
                 "Streamed alternate gravity uses the building's correctly oriented base balcony " + up);
             Check((point - player.transform.position).magnitude < castle.LayerSpacing * 2f, "Alternate gravity is in the nearby neighborhood " + up +
                 "; surface=" + point + ", initial=" + initial + ", current=" + player.transform.position);
             player.transform.position = point; player.ResetFallVelocity(); gravity.RestoreDefaultGravity();
+            // Teleported fixtures have no corner traversal to align the previous gravity frame.
+            gravity.SetGravity(-up, 22f, true, 8f);
             gravity.EnterZone(zone);
             for (int i = 0; i < 90; i++) { castle.SimulateCastle(1f / 60f); Step(player, 1); }
             Check(Vector3.Dot(gravity.Up, up) > 0.99f && player.Grounded, "Actual building gravity zone supports player " + up);
@@ -820,7 +872,7 @@ public static class InfinityCastleValidation
         castle.rideMovingBuildings = false; // Also retain coverage of the optional stationary-floor mode.
         castle.InitializeCastle(); Step(player, 60);
         TestRearrangementSweep(root);
-        Check(castle.PoolCapacity <= 272, "Android building pool has a fixed 272-module ceiling");
+        Check(castle.PoolCapacity <= 320, "Dense Android profile has a fixed 320-module ceiling");
         Check(castle.mobileDecorationPrefabs.Count == castle.buildingPrefabs.Count &&
             castle.mobileDecorationPrefabs.All(p => p != null && p.GetComponentsInChildren<MeshCollider>().Length == 0),
             "All original building variants have lightweight distant prefabs");

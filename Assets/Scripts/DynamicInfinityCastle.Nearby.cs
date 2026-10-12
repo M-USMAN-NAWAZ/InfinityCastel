@@ -61,7 +61,8 @@ public partial class DynamicInfinityCastle
         {
             InfinityCastleBuilder piece = i < samples.Count ? samples[i] : CreatePiece(buildingPrefabs[i % buildingPrefabs.Count]);
             Bounds art = CastleGeometry.RendererBoundsInRoot(piece.transform);
-            CastleWalkableSurface roof = CreateSurface("Connected Castle Base", deckSize, deckSize, false, piece.transform);
+            CastleWalkableSurface roof = CreateSurface("Castle Perimeter Walkway", deckSize, deckSize, false, piece.transform,
+                perimeterWalkways ? new Vector2(art.size.x, art.size.z) : null);
             roof.transform.localPosition = new Vector3(art.center.x, art.min.y - 0.02f, art.center.z);
             InfiniteCastleGrid zone = roof.gameObject.AddComponent<InfiniteCastleGrid>();
             zone.Configure(Vector3.down, Vector3.up * 2.3f, new Vector3(deckSize + 0.6f, 5.4f, deckSize + 0.6f), 1, true);
@@ -508,7 +509,9 @@ public partial class DynamicInfinityCastle
         link.root.SetActive(true);
         link.bounds = ConnectionVisualBounds(link);
         InfiniteCastleGrid zone = link.root.GetComponent<InfiniteCastleGrid>();
-        zone.Configure(-up, Vector3.up * 2.3f, new Vector3(3.4f, turnFace ? 6.6f : 5.4f, delta.magnitude + 1f), 1, true, turnFace);
+        zone.BindSurface(link.landing);
+        // The outgoing face owns the overlap while the capsule turns through the corner.
+        zone.Configure(-up, Vector3.up * 2.3f, new Vector3(3.4f, turnFace ? 6.6f : 5.4f, delta.magnitude + 1f), turnFace ? 2 : 1, true, turnFace);
         zone.enabled = enableGravityZones;
     }
     private Vector3 RoofPoint(NearbyNode node, Vector3 point, bool underside = false)
@@ -558,10 +561,8 @@ public partial class DynamicInfinityCastle
         if (a.rebuilding || b.rebuilding || !enableGravityZones || linkPool.Count < 2 || Mathf.Abs(Vector3.Dot(a.up, up)) > 0.01f) return false;
         // Both faces must meet outside their balconies, so the turned capsule points away from the incoming floor.
         if (!FitsNearbyCorner(a.surface, surface, a.up, up, a.piece.transform.rotation, b.piece.transform.rotation)) return false;
-        Vector3 axis = Vector3.Cross(a.up, up);
-        Vector3 corner = a.surface + up * Vector3.Dot(surface - a.surface, up);
-        corner += axis * Vector3.Dot((a.surface + surface) * 0.5f - corner, axis);
-        corner += axis * axisOffset;
+        Vector3 corner = GravityCornerPoint(a.surface, surface, a.up, up,
+            a.piece.transform.rotation, b.piece.transform.rotation, axisOffset);
         Link approach = linkPool.Dequeue(), turn = linkPool.Dequeue();
         ConfigureCornerLanding(approach, RoofPoint(a, corner), corner, a.up);
         Vector3 turnEnd = RoofPoint(b, corner, bUnderside);
@@ -576,9 +577,25 @@ public partial class DynamicInfinityCastle
             bUnderside = bUnderside, cornerAxisOffset = axisOffset });
         return true;
     }
-    private bool FitsNearbyCorner(Vector3 a, Vector3 b, Vector3 aUp, Vector3 bUp, Quaternion aRotation, Quaternion bRotation) =>
-        Vector3.Dot(b - a, bUp) >= DeckEdgeDistance(bUp, aRotation) + .5f &&
-        Vector3.Dot(a - b, aUp) >= DeckEdgeDistance(aUp, bRotation) + .5f;
+    private bool FitsNearbyCorner(Vector3 a, Vector3 b, Vector3 aUp, Vector3 bUp, Quaternion aRotation, Quaternion bRotation)
+    {
+        Vector3 axis = Vector3.Cross(aUp, bUp);
+        return Vector3.Dot(b - a, bUp) >= DeckEdgeDistance(bUp, aRotation) + .5f &&
+            Vector3.Dot(a - b, aUp) >= DeckEdgeDistance(aUp, bRotation) + .5f &&
+            Mathf.Abs(Vector3.Dot(b - a, axis)) <= DeckEdgeDistance(axis, aRotation) + DeckEdgeDistance(axis, bRotation) - 3.4f;
+    }
+    private Vector3 GravityCornerPoint(Vector3 a, Vector3 b, Vector3 aUp, Vector3 bUp,
+        Quaternion aRotation, Quaternion bRotation, float axisOffset)
+    {
+        Vector3 axis = Vector3.Cross(aUp, bUp);
+        Vector3 corner = a + bUp * Vector3.Dot(b - a, bUp);
+        float aAxis = Vector3.Dot(a, axis), bAxis = Vector3.Dot(b, axis);
+        float aEdge = DeckEdgeDistance(axis, aRotation) - 1.7f, bEdge = DeckEdgeDistance(axis, bRotation) - 1.7f;
+        float lower = Mathf.Max(aAxis - aEdge, bAxis - bEdge), upper = Mathf.Min(aAxis + aEdge, bAxis + bEdge);
+        // An orthogonal joint keeps the incoming floor from extending across the outgoing wall.
+        float along = Mathf.Clamp((aAxis + bAxis) * .5f + axisOffset, lower, upper);
+        return corner + axis * (along - Vector3.Dot(corner, axis));
+    }
     private void DisconnectNearby(NearbyNode node)
     {
         for (int i = nearbyLinks.Count - 1; i >= 0; i--)

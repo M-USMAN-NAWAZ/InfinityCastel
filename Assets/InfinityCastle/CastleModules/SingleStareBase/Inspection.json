@@ -1,0 +1,12 @@
+{
+  "source": "SingleStareBase.fbx",
+  "scale": 9.0,
+  "roof_height": 0.0,
+  "kind": "Stair",
+  "source_triangles": 50000,
+  "lods": [
+    19000,
+    7500,
+    2500
+  ]
+}

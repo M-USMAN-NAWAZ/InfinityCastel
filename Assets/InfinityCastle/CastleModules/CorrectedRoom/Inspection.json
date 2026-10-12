@@ -1,0 +1,12 @@
+{
+  "source": "CorrectedRoom.fbx",
+  "scale": 8.51581508515815,
+  "roof_height": 3.4999999999999996,
+  "kind": "Room",
+  "source_triangles": 59300,
+  "lods": [
+    22534,
+    10219,
+    10219
+  ]
+}

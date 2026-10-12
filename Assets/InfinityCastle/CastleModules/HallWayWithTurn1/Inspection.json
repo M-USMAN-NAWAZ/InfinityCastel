@@ -1,0 +1,12 @@
+{
+  "source": "HallWayWithTurn1.fbx",
+  "scale": 9.971509971509972,
+  "roof_height": 3.5,
+  "kind": "Corridor",
+  "source_triangles": 71193,
+  "lods": [
+    27052,
+    10677,
+    3559
+  ]
+}

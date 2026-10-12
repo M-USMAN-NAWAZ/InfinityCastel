@@ -95,6 +95,20 @@ public partial class DynamicInfinityCastle
 
     public bool TryGetNearFieldMovingSurface(out Vector3 point, out Vector3 up, out float distance)
     {
+        if (BuildingTraversalEnabled)
+        {
+            BuildingWing nearestWing = null; distance = NearFieldRadius;
+            foreach (BuildingWing wing in buildingWings)
+            {
+                if (!wing.active || !wing.piece.IsMoving) continue;
+                float next = Vector3.Distance(wing.piece.WorldBounds.ClosestPoint(player.position), player.position);
+                if (next > distance) continue;
+                nearestWing = wing; distance = next;
+            }
+            point = nearestWing != null ? nearestWing.Floor + nearestWing.Up * .08f : default;
+            up = nearestWing != null ? nearestWing.Up : default;
+            return nearestWing != null;
+        }
         NearbyNode closest = null;
         distance = NearFieldRadius;
         foreach (NearbyNode node in nearbyNodes)
@@ -128,9 +142,7 @@ public partial class DynamicInfinityCastle
             return;
         }
         // Keep the two gravity faces joined along their common intersection while either face slides.
-        Vector3 axis = Vector3.Cross(connection.AUp, connection.BUp);
-        Vector3 corner = a + connection.BUp * Vector3.Dot(b - a, connection.BUp);
-        corner += axis * (Vector3.Dot((a + b) * 0.5f - corner, axis) + connection.cornerAxisOffset);
+        Vector3 corner = GravityCornerPoint(a, b, connection.AUp, connection.BUp, aRotation, bRotation, connection.cornerAxisOffset);
         ConfigureCornerLanding(connection.link, RoofPointAtPose(a, aRotation, corner), corner, connection.AUp);
         Vector3 turnEnd = RoofPointAtPose(b, bRotation, corner);
         ConfigureCornerLanding(connection.turnLanding, CornerTurnStart(corner, turnEnd), turnEnd, connection.BUp, true);

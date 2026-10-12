@@ -1,0 +1,12 @@
+{
+  "source": "HallWay3Way.fbx",
+  "scale": 12.681159420289854,
+  "roof_height": 3.5,
+  "kind": "Corridor",
+  "source_triangles": 56304,
+  "lods": [
+    21395,
+    8444,
+    2815
+  ]
+}

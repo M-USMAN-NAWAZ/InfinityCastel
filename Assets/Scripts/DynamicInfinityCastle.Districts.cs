@@ -5,6 +5,65 @@ public partial class DynamicInfinityCastle
 {
     private readonly List<NearbyNode> rebuildDistrict = new(4);
     private readonly List<Bounds> rebuildDistrictSweeps = new(4);
+    private readonly List<InfinityCastleBuilder> decorDistrict = new(4);
+    private readonly List<int> decorDistrictCandidates = new(4);
+    private readonly List<Bounds> decorDistrictSweeps = new(4);
+
+    private bool TryRearrangeDecorDistrict(InfinityCastleBuilder seed, Vector3Int cell)
+    {
+        if (!denseDistantArchitecture || seed.IsMoving || Hash(cell, rebuildSequence * 137 + 1) > .65f) return false;
+        decorDistrict.Clear(); decorDistrictCandidates.Clear();
+        AddDecorDistrictMember(seed);
+        for (int neighbor = 0; neighbor < directions.Length; neighbor++)
+        {
+            if (decorDistrict.Count == 4) break;
+            int axis = neighbor < 2 ? neighbor + 2 : neighbor < 4 ? neighbor - 2 : neighbor;
+            Vector3Int direction = Vector3Int.RoundToInt(directions[axis]);
+            if (decor.TryGetValue(cell + direction, out InfinityCastleBuilder next) && !next.IsMoving) AddDecorDistrictMember(next);
+        }
+        if (decorDistrict.Count < 2) return false;
+        int first = Mathf.FloorToInt(Hash(cell, rebuildSequence * 137) * 6f);
+        for (int attempt = 0; attempt < 18; attempt++)
+        {
+            float distance = attempt < 6 ? Mathf.Min(12f, rebuildTravel) : attempt < 12 ? 6f : 2.5f;
+            Vector3 offset = directions[(first + attempt) % 6] * distance;
+            decorDistrictSweeps.Clear();
+            bool clear = true;
+            for (int member = 0; member < decorDistrict.Count; member++)
+            {
+                InfinityCastleBuilder piece = decorDistrict[member];
+                RebuildCandidate entry = rebuildCandidates[decorDistrictCandidates[member]];
+                Vector3 relative = piece.WorldBounds.center + offset - DecorAnchor(entry.cell);
+                Vector3 envelope = decorGridSpacing * .45f;
+                Bounds sweep = piece.SweepTo(offset);
+                if (Mathf.Abs(relative.x) > envelope.x || Mathf.Abs(relative.y) > envelope.y || Mathf.Abs(relative.z) > envelope.z ||
+                    !IsSpaceFree(sweep, piece, decorDistrict)) { clear = false; break; }
+                decorDistrictSweeps.Add(sweep);
+            }
+            if (!clear) continue;
+            int district = ++LastRebuildDistrictCount;
+            LastRebuildDistrictBuildingCount += decorDistrict.Count;
+            for (int member = 0; member < decorDistrict.Count; member++)
+            {
+                InfinityCastleBuilder piece = decorDistrict[member];
+                piece.BeginRearrange(piece.WorldBounds.center, offset, piece.transform.rotation, rebuildMoveSeconds, decorDistrictSweeps[member]);
+                int index = decorDistrictCandidates[member];
+                RebuildCandidate entry = rebuildCandidates[index]; entry.started = true; entry.district = district; rebuildCandidates[index] = entry;
+            }
+            return true;
+        }
+        return false;
+    }
+    private void AddDecorDistrictMember(InfinityCastleBuilder piece)
+    {
+        for (int index = 0; index < rebuildCandidates.Count; index++)
+        {
+            RebuildCandidate entry = rebuildCandidates[index];
+            if (entry.piece != piece || entry.node != null || entry.started || !IsCurrentRebuildCandidate(entry) ||
+                Hash(entry.cell, rebuildSequence * 137 + 1) > .65f) continue;
+            decorDistrict.Add(piece); decorDistrictCandidates.Add(index); return;
+        }
+    }
 
     private static bool BelongsToDistrict(NearbyLink link, ICollection<NearbyNode> district) =>
         district != null && (district.Contains(link.a) || district.Contains(link.b));

@@ -31,11 +31,29 @@ public partial class DynamicInfinityCastle
             else stairs++;
         }
         foreach (NearbyLink link in nearbyLinks) if (link.corner) corners++;
+        if (BuildingTraversalEnabled)
+        {
+            attached = BuildingDirectJoinCount;
+            stairs = BuildingStairJoinCount;
+            foreach (BuildingWing wing in buildingWings)
+            {
+                if (!wing.active) continue;
+                foreach (BuildingPart part in wing.parts)
+                {
+                    if (part.module.kind == CastleArchitectureModule.ModuleKind.Room) attached++;
+                    if (part.module.kind == CastleArchitectureModule.ModuleKind.Stair) stairs++;
+                }
+                float distance = (wing.piece.WorldBounds.ClosestPoint(player.position) - player.position).magnitude;
+                if (GroupSize(wing) == 1 && distance < 35f) jumps++; else if (distance >= 35f) distant++;
+                if (Vector3.Dot(wing.Up, PlayerUp) < .5f && distance < 45f) corners++;
+            }
+        }
         AttachedBuildingCount = attached; StairBuildingCount = stairs; JumpBuildingCount = jumps; DistantBuildingCount = distant + decor.Count;
         float total = Mathf.Max(1, attached + stairs + jumps + distant);
         LayoutPolicy.Observe(new Vector4(attached, stairs, jumps, distant) / total,
             Mathf.Clamp01(corners / 8f), controller != null && controller.Grounded, IsRebuilding,
-            nearbyNodes.Count / (float)Mathf.Max(1, nearbyPoolSize), playerVelocity, PlayerUp,
+            BuildingTraversalEnabled ? BuildingWingCount / (float)Mathf.Max(1, architectureWingPoolSize) :
+                nearbyNodes.Count / (float)Mathf.Max(1, nearbyPoolSize), playerVelocity, PlayerUp,
             LastRebuildMovedCount / (float)Mathf.Max(1, LastRebuildSelectedCount),
             LastRebuildBlockedCount / (float)Mathf.Max(1, LastRebuildSelectedCount));
     }

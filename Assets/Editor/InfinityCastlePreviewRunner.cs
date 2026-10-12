@@ -134,18 +134,21 @@ public static class InfinityCastlePreviewRunner
             { if (!Capture(inspection, "castle-playground-rebuilding.png")) return; fallStage = 3; }
             if (fallStage < 3) return;
             if (Time.time - fallAt < 0.5f || !controller.Grounded) return;
+            if (castle.HasPendingLayout) return;
             bool castleLanding = castle.IsCastleSurface(controller.Motor.GroundHit.collider) &&
                 fallStart.y - controller.transform.position.y <= castle.LayerSpacing * 3.1f;
             inspection.transform.position = castle.player.position + new Vector3(90f, 140f, -120f);
             inspection.transform.LookAt(castle.player.position + Vector3.up * 7f);
             if (!Capture(inspection, "castle-playground-landed.png")) return;
             bool clear = castle.ValidateNoBuildingOverlaps(out string error);
+            bool density = castle.ValidateDenseArchitecture(out string densityReport) && castle.DistantArchitectureCount >= 150;
             bool learned = castle.UsesTrainedDirector && castle.LearnedDecisions > 1;
             bool skyboxPreserved = assignedSkybox != null && RenderSettings.skybox == assignedSkybox && Camera.main.clearFlags == CameraClearFlags.Skybox;
             File.WriteAllText(Path.GetFullPath("../castle-playmode.txt"),
                 $"Grounded={controller.Grounded}\nInitialized={castle.IsInitialized}\nKeyboard movement and jump={keyboardVerified}\nTouch movement, look and jump={touchVerified}\nNo overlaps={clear}\nSkybox preserved={skyboxPreserved}\nLanded on castle={castleLanding}\nLanding district rebuilt={fallStage == 3}\nTimed rebuilds={castle.RebuildGeneration}\nRebuilt connected buildings={castle.RebuiltRouteCount}\nCoordinated wings={castle.RebuiltDistrictCount}\nPhysically moved modules={castle.LastRebuildMovedCount}\nRotated modules={castle.LastRebuildRotatedCount}\nPhysical motion captured={motionCaptured}\nClose motion captured={nearMotionCaptured}\nNear-field motion commands={castle.NearFieldMotionCount}\nGravity-corner motion commands={castle.NearbyCornerMotionCount}\nRebuilt adjacent buildings={castle.LastRebuildNearMovedCount}\nChanged pixels={changedPixels}\nFixed-view architecture changes={architectureChangedPixels}\n{error}\n");
             File.AppendAllText(Path.GetFullPath("../castle-playmode.txt"), "Trained director=" + castle.UsesTrainedDirector + "\nLearned decisions=" + castle.LearnedDecisions + "\n");
-            if (!learned || !clear || !castleLanding || !skyboxPreserved || fallStage != 3 || changedPixels < 1000 ||
+            File.AppendAllText(Path.GetFullPath("../castle-playmode.txt"), "Open walkways and no background bases=" + density + "\n" + densityReport + "\n");
+            if (!learned || !clear || !density || !castleLanding || !skyboxPreserved || fallStage != 3 || changedPixels < 1000 ||
                 !motionCaptured || !nearMotionCaptured || castle.NearFieldMotionCount == 0 || castle.NearbyCornerMotionCount == 0 ||
                 castle.LastRebuildNearMovedCount == 0 || castle.RebuiltRouteCount == 0 || castle.RebuiltDistrictCount == 0 || architectureChangedPixels < 1000)
             { Debug.LogError("Play-mode validation failed: " + error); Finish(1); return; }
@@ -167,14 +170,25 @@ public static class InfinityCastlePreviewRunner
         inspection.farClipPlane = Mathf.Max(1800f, inspection.farClipPlane);
         inspection.enabled = false;
         inspection.GetUniversalAdditionalCameraData().renderPostProcessing = false;
-        inspection.transform.position = castle.player.position + new Vector3(160f, 450f, -200f);
-        inspection.transform.LookAt(castle.player.position);
+        SetOverviewPose();
         if (!Capture(inspection, "castle-playground-overview.png")) return;
         inspection.transform.SetPositionAndRotation(camera.transform.position, camera.transform.rotation);
         if (!Capture(inspection, "castle-playground-nearby.png")) return;
-        inspection.transform.position = castle.player.position + new Vector3(160f, 450f, -200f);
-        inspection.transform.LookAt(castle.player.position);
+        SetOverviewPose();
         capturedAt = Time.time;
+    }
+    private static void SetOverviewPose()
+    {
+        inspection.transform.position = castle.player.position + new Vector3(100f, 85f, -130f);
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            bool inside = false;
+            foreach (InfinityCastleBuilder piece in castle.GetComponentsInChildren<InfinityCastleBuilder>())
+                if (piece.WorldBounds.Contains(inspection.transform.position)) { inside = true; break; }
+            if (!inside) break;
+            inspection.transform.position += Vector3.up * 10f;
+        }
+        inspection.transform.LookAt(castle.player.position + Vector3.up * 12f);
     }
     private static void Finish(int code)
     {

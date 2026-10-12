@@ -11,12 +11,17 @@ public class InfiniteCastleGrid : MonoBehaviour
     public int priority;
     public bool surfaceBound;
     public bool cornerTransition;
+    [HideInInspector] public float cornerSnapDistance;
+    [HideInInspector] public bool cornerEntryOnly;
     private BoxCollider trigger;
+    private CastleWalkableSurface walkway;
     private readonly Dictionary<InfinityGravityBody, HashSet<Collider>> occupants = new();
     public Vector3 SurfacePoint => transform.position;
+    internal void BindSurface(CastleWalkableSurface surface) => walkway = surface;
     public float DistanceToSurface(Vector3 point)
     {
         if (trigger == null) return float.PositiveInfinity;
+        if (surfaceBound && walkway != null) return walkway.DistanceToSurface(point);
         Vector3 local = transform.InverseTransformPoint(point);
         Vector3 edge = trigger.size * 0.5f;
         Vector3 nearest = new(Mathf.Clamp(local.x, trigger.center.x - edge.x, trigger.center.x + edge.x),
@@ -25,6 +30,7 @@ public class InfiniteCastleGrid : MonoBehaviour
     }
     private void Awake()
     {
+        walkway = GetComponent<CastleWalkableSurface>();
         foreach (BoxCollider box in GetComponents<BoxCollider>())
             if (box.isTrigger) { trigger = box; break; }
         if (trigger == null) trigger = gameObject.AddComponent<BoxCollider>();

@@ -55,6 +55,7 @@ public class InfinityGravityBody : MonoBehaviour
     public void RestoreDefaultGravity() { hasManualGravity = false; hasRetainedGravity = false; ResolveGravity(); }
     private bool Occupies(InfiniteCastleGrid zone)
     {
+        if (zone.cornerEntryOnly && Vector3.Dot(transform.up, -zone.gravityDirection.normalized) > .99f) return false;
         Vector3 centre = transform.position + transform.up * 0.9f;
         float allowance = zone.cornerTransition ? 0.8f : 0.05f;
         if (zone.surfaceBound && Vector3.Dot(centre - zone.SurfacePoint, -zone.gravityDirection.normalized) < -allowance) return false;
