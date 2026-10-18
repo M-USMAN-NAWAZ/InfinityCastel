@@ -4,8 +4,36 @@ using System.IO;
 using System.Text;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
 using UnityEngine.Rendering;
+
+// Native meshes are instantiated, rescaled and used for physics in the player.
+// Editor-only access can conceal missing CPU mesh data in an Android build.
+public sealed class CastleRuntimeModelImporter : AssetPostprocessor, IPreprocessBuildWithReport
+{
+    public int callbackOrder => 0;
+    private void OnPreprocessModel()
+    {
+        if (!assetPath.StartsWith("Assets/Models/CastleModules/", StringComparison.Ordinal)) return;
+        var importer = (ModelImporter)assetImporter;
+        importer.isReadable = true;
+        importer.addCollider = true;
+    }
+    public void OnPreprocessBuild(BuildReport report) => Prepare();
+    public static void Prepare()
+    {
+        foreach (string name in new[] { "CorrectedRoom", "HallWayWithTurnFixed", "HallWay3Way", "DoubleStaresBase", "SingleStareBase", "Path", "Stares" })
+        {
+            string path = "Assets/Models/CastleModules/" + name + ".fbx";
+            var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+            if (importer == null) throw new BuildFailedException("Missing runtime castle model: " + path);
+            if (importer.isReadable && importer.addCollider) continue;
+            importer.isReadable = true; importer.addCollider = true; importer.SaveAndReimport();
+        }
+    }
+}
 
 public static class CastleCurrentModelImporter
 {

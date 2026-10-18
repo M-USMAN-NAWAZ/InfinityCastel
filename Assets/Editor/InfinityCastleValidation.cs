@@ -1014,7 +1014,7 @@ public static class InfinityCastleValidation
     public static void InspectArchitecture()
     {
         if (!Application.isBatchMode) throw new InvalidOperationException("Inspect in an isolated project.");
-        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Danish/inifinity_castle_pack.fbx");
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/CastleModules/CorrectedRoom.fbx");
         using var output = new StreamWriter(Path.GetFullPath("../castle-authored-frame.txt"));
         foreach (MeshFilter mesh in model.GetComponentsInChildren<MeshFilter>(true))
             output.WriteLine(mesh.name + ": world=" + mesh.transform.rotation.eulerAngles + ", local=" + mesh.transform.localRotation.eulerAngles +
@@ -1150,7 +1150,7 @@ public static class InfinityCastleValidation
         string output = Path.GetFullPath("../castle-art-report.txt");
         using (var writer = new StreamWriter(output))
         {
-            foreach (string file in Directory.GetFiles("Assets/prefabs/Danish", "*.prefab"))
+            foreach (string file in Directory.GetFiles("Assets/Models/CastleModules", "*.fbx"))
             {
                 GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(file);
                 GameObject instance = UnityEngine.Object.Instantiate(prefab);

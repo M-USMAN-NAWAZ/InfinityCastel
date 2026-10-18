@@ -47,38 +47,41 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   useBuildingTraversal: 1
-  roomPrefab: {fileID: 6014594950557375089, guid: 4ff57480c1bcc7b4d885238ed224ebc8, type: 3}
-  corridorPrefab: {fileID: 25327521678407479, guid: 1a36e82737b2f8c4c87726ea368177e0, type: 3}
-  junctionPrefab: {fileID: 672184406871505075, guid: 0bca4eb6c414f1d47b7ca3eccfd47e68, type: 3}
-  doubleStairPrefab: {fileID: 3615256733545003267, guid: cb0d3456a82f094428f29d49287bfbbc, type: 3}
-  roofAccessStairPrefab: {fileID: 7102022659405673095, guid: 4f0bcdc8c23ee634a8add92ec7ce125a, type: 3}
-  architectureWingPoolSize: 20
+  roomPrefab: {fileID: 919132149155446097, guid: 196996923e8dbf84e97c1c020e8137fc, type: 3}
+  corridorPrefab: {fileID: 919132149155446097, guid: 1b7e095d201ea6a44b98db8f2bbbd3a0, type: 3}
+  junctionPrefab: {fileID: 919132149155446097, guid: 975936022caec2546bef7617ffda48b8, type: 3}
+  doubleStairPrefab: {fileID: 919132149155446097, guid: 05b89c1585fd3ff44a1be5aa00620746, type: 3}
+  roofAccessStairPrefab: {fileID: 919132149155446097, guid: 0a2ed5efa2e233b46923dcba5954b4f0, type: 3}
+  architectureWingPoolSize: 96
+  architectureDistanceModels:
+  - {fileID: 919132149155446097, guid: 499c79b949a35d342be4bee8ea89c9b1, type: 3}
+  - {fileID: 919132149155446097, guid: 94e02f5c97ff51c4fbc1998af7f218b6, type: 3}
+  - {fileID: 919132149155446097, guid: 039aa5d6508e8df4098abcb7824ac7e8, type: 3}
+  - {fileID: 919132149155446097, guid: 2866dd172f6c0fa4aa5d3d2f77f77d59, type: 3}
+  - {fileID: 919132149155446097, guid: 30fed0b1eaae7464fb31bcb5cea68552, type: 3}
+  - {fileID: 919132149155446097, guid: 0118f8649f6fc86449112238db839473, type: 3}
+  - {fileID: 919132149155446097, guid: 933d7025eeb1c374993e279b72400cc1, type: 3}
+  architectureDistanceMaterials:
+  - {fileID: 2100000, guid: 53bbb85d7e657cc4a9761f23500ed335, type: 2}
+  - {fileID: 2100000, guid: 014531a6f849c41409b6f0cbd122b1e1, type: 2}
+  - {fileID: 2100000, guid: bdda91e149cb1cb43ad122c3bdf12df8, type: 2}
+  - {fileID: 2100000, guid: 7b360126b83f2ed43b3ef5bc927ba7a3, type: 2}
+  - {fileID: 2100000, guid: 5a8128464f5a24b4d81af62ef23b462f, type: 2}
+  - {fileID: 2100000, guid: ffe700ed4f64f9f4eb82d39f0924f3b2, type: 2}
+  - {fileID: 2100000, guid: b9e45d769378ed748ad99d0228e32a4a, type: 2}
   player: {fileID: 0}
   buildingsParent: {fileID: 1000000000000000005}
   pathsParent: {fileID: 1000000000000000007}
   buildingPrefabs:
-  - {fileID: 9100312691936151657, guid: 57b58cb809acd574e9decc5f87757f86, type: 3}
-  - {fileID: 1451599105574082075, guid: 808e18243c9a5794dbc260d3318eb2b5, type: 3}
-  - {fileID: 634896325214521585, guid: fc6a3d77dad2de54e8b172cb9530e5ba, type: 3}
-  - {fileID: 3898410623604160397, guid: 44b6b8b0c617ec646a4cd25fad185817, type: 3}
-  - {fileID: 2736104367488340503, guid: 9356b01f860475341842c95bc5f49a68, type: 3}
-  - {fileID: 8128418724896207906, guid: 038ab5c0bf5086a4f8573b73c2aa634a, type: 3}
-  - {fileID: 4533513718277074380, guid: 6d66ffa2d44ff524fac1309cbd9e3e39, type: 3}
-  - {fileID: 7337061573449985438, guid: 8ef7f8ff35403cf438903dcf63c2215b, type: 3}
-  - {fileID: 7609757558275495975, guid: d8ff1743620d61a4083ab120ffa2b4ae, type: 3}
+  - {fileID: 919132149155446097, guid: 196996923e8dbf84e97c1c020e8137fc, type: 3}
+  - {fileID: 919132149155446097, guid: 1b7e095d201ea6a44b98db8f2bbbd3a0, type: 3}
+  - {fileID: 919132149155446097, guid: 975936022caec2546bef7617ffda48b8, type: 3}
+  - {fileID: 919132149155446097, guid: 05b89c1585fd3ff44a1be5aa00620746, type: 3}
+  - {fileID: 919132149155446097, guid: 0a2ed5efa2e233b46923dcba5954b4f0, type: 3}
   pathPrefabs:
-  - {fileID: 2662463070651916922, guid: 565417813f355794485d6eb4efa7d114, type: 3}
-  - {fileID: 7863885210709501294, guid: f5169ea3aa233cb40895e921a8ba946a, type: 3}
-  mobileDecorationPrefabs:
-  - {fileID: 1466369838106049192, guid: 7a5e474c183009e409f802b3cca3e465, type: 3}
-  - {fileID: 8271136481441824093, guid: dc1c01d22914b154fa9bd7a21cd3afec, type: 3}
-  - {fileID: 2876907107876292073, guid: fdc4b46b1d72d874fbfcd83470634f00, type: 3}
-  - {fileID: 4898048824262027563, guid: 09a49a13be1311e4bbf2875c05410951, type: 3}
-  - {fileID: 9189507838996846827, guid: 90a7af8c921486146a1cdfb0c0e6903a, type: 3}
-  - {fileID: 5150410420849743400, guid: bcf173876320eb446bf3601c38ff51d7, type: 3}
-  - {fileID: 326470555214474620, guid: 9d195379676b73441b957169ee80511f, type: 3}
-  - {fileID: 60424421214812343, guid: 816ee449f0904554dbc4940b597852dd, type: 3}
-  - {fileID: 2006308052483860858, guid: 0aef8e3638bdbc748a0bab048b5ab22b, type: 3}
+  - {fileID: 919132149155446097, guid: 187f7f15e2a84da428d6ced0f7972ba3, type: 3}
+  - {fileID: 919132149155446097, guid: e368ffe372dbd874b91f4f55a688b902, type: 3}
+  mobileDecorationPrefabs: []
   mobileControlsPrefab: {fileID: 6751388636123340836, guid: 2f7f3dde7ae722a4aafffe20691ad702, type: 3}
   mobileRenderPipeline: {fileID: 11400000, guid: 5e6cbd92db86f4b18aec3ed561671858, type: 2}
   previewTouchControls: 0
@@ -86,67 +89,42 @@ MonoBehaviour:
   deckMaterial: {fileID: 2100000, guid: 76833fdd21516954d8e0b28cbd9ab708, type: 2}
   architectureShader: {fileID: 4800000, guid: 2123dcaff2f346ad9d8232b8098730ad, type: 3}
   architectureFinishes:
-  - source: {fileID: 2100000, guid: 2781c94b998971f4fb2b48afea4fa5f1, type: 2}
-    albedo: {fileID: 2800000, guid: acbce50b1eb31484e985f9158bf1ff4d, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 1
-  - source: {fileID: 2100000, guid: 3d62544c6a7c9f944ac3dc748a690e10, type: 2}
-    albedo: {fileID: 2800000, guid: c7c155821175d82489656fa2427274de, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 5
-  - source: {fileID: 2100000, guid: 53973f066005db04c8206093fd375b26, type: 2}
-    albedo: {fileID: 2800000, guid: 4f4ba2c8797be834198c7d32ed9c39ce, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 2
-  - source: {fileID: 2100000, guid: f2c7df09c7ab5a34c85cdb3cd33846d7, type: 2}
+  - source: {fileID: 2100000, guid: 589f4a0d5a898004ea58750517c71c4c, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: f4519dde5a5ce0846be3bfa71be97e76, type: 2}
-    albedo: {fileID: 2800000, guid: 24c45467603c3b04a9b803486d195a89, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 1
-  - source: {fileID: 2100000, guid: 2cf220138a6aff74ab87d59ab5e633fb, type: 2}
-    albedo: {fileID: 2800000, guid: 96edb6f9e6b9f7b409420c2e42f872dc, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 2
-  - source: {fileID: 2100000, guid: 7af4733ae76f1cd46979068d9862ac6a, type: 2}
-    albedo: {fileID: 2800000, guid: 24c45467603c3b04a9b803486d195a89, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 1
-  - source: {fileID: 2100000, guid: 01ba67575f31e1c488a7d96bbbe6ed25, type: 2}
-    albedo: {fileID: 2800000, guid: 54650b8b40a3aaa42bb145087174e57f, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 2
-  - source: {fileID: 2100000, guid: 05e2957d4b23b5f419adb85e4f94feb8, type: 2}
+  - source: {fileID: 2100000, guid: 207e81ea910ed0446bd48ef89a0aaa47, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: 4507e71ce3b2ce344806d2af8ff401b9, type: 2}
-    albedo: {fileID: 2800000, guid: 77d9ad4a9bfe8ce4bafcd30d43ef9d82, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 2
-  - source: {fileID: 2100000, guid: 0c2d4ae877a860b4399a8999b15b373f, type: 2}
-    albedo: {fileID: 2800000, guid: 652d207a86d80f04092040185ba32315, type: 3}
-    tint: {r: 1, g: 1, b: 1, a: 1}
-    glow: 0
-    finishMode: 2
-  - source: {fileID: 2100000, guid: 4a30009ac39c83e4da7708dc6ca1facb, type: 2}
+  - source: {fileID: 2100000, guid: b3d414de884b65547b00757b306739cc, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  unifiedArchitectureTheme: 1
+  - source: {fileID: 2100000, guid: 2879c565c0d670e49aea82fb9b0e523e, type: 2}
+    albedo: {fileID: 0}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    glow: 0
+    finishMode: 1
+  - source: {fileID: 2100000, guid: a591c4e693230ef4182604b79bdcec06, type: 2}
+    albedo: {fileID: 0}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    glow: 0
+    finishMode: 1
+  - source: {fileID: 2100000, guid: 1166ada53d241f24bba363c97585ce5c, type: 2}
+    albedo: {fileID: 0}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    glow: 0
+    finishMode: 1
+  - source: {fileID: 2100000, guid: dc58bf9a8b28a394f928ea18ec112a01, type: 2}
+    albedo: {fileID: 0}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    glow: 0
+    finishMode: 1
+  unifiedArchitectureTheme: 0
   themeWoodTexture: {fileID: 2800000, guid: 4a04923c408dcb642909a8c0b740725a, type: 3}
   themePaperTexture: {fileID: 2800000, guid: f59f4075bc9236c4f95a33d3dadfd5a9, type: 3}
   layersInEveryDirection: 4
@@ -168,7 +146,7 @@ MonoBehaviour:
   rideMovingBuildings: 1
   motionSpeedRange: {x: 1.2, y: 2.5}
   oneWayExitDuration: 4
-  simultaneousShifts: 6
+  simultaneousShifts: 3
   shiftInterval: 1.5
   keepFloorUnderPlayer: 1
   floorHeightBelowPlayer: 0.75
@@ -185,9 +163,11 @@ MonoBehaviour:
   rebuildMoveSeconds: 6
   rebuildTravel: 18
   mobileBudget: 1
-  decorationPoolSize: 192
+  decorationPoolSize: 0
   layoutStepsPerFrame: 2
-  layoutMillisecondsPerFrame: 2
+  layoutMillisecondsPerFrame: 1
+  architectureDistrictModel: {fileID: 919132149155446097, guid: 974b5b05cdb758845aee0f90b75ffa16, type: 3}
+  architectureDistrictMaterial: {fileID: 2100000, guid: ca74b90cd7682d84287208de09cf67ae, type: 2}
   useLearnedDirector: 1
 --- !u!1 &1000000000000000004
 GameObject:

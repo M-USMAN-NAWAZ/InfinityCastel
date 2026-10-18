@@ -11,7 +11,7 @@ using UnityEngine;
 public static class InfinityCastleArchitectureValidation
 {
     private const string Runtime = "Assets/prefabs/InfinityCastleRuntime.prefab";
-    private const string Art = "Assets/InfinityCastle/CastleModules/";
+    private const string Art = "Assets/Models/CastleModules/";
     private const string PreviewPending = "InfinityCastle.ArchitecturePreviewPending";
     private const string PreviewStarted = "InfinityCastle.ArchitecturePreviewStarted";
     private static StreamWriter report;
@@ -21,6 +21,11 @@ public static class InfinityCastleArchitectureValidation
     private static readonly Collider[] zoneHits = new Collider[256];
     private static readonly HashSet<InfiniteCastleGrid> enteredZones = new();
     private static readonly HashSet<InfiniteCastleGrid> touchingZones = new();
+    private static int startupProbe;
+    private static float startupProbeTime;
+    private static Vector3 startupProbePosition;
+    private static Quaternion startupProbeRotation;
+    private static bool startupProbeAnalog;
 
     public static void Exterior()
     {
@@ -31,22 +36,77 @@ public static class InfinityCastleArchitectureValidation
     [MenuItem("Infinity Castle/Use Playable Building Architecture")]
     public static void Install()
     {
+        CastleRuntimeModelImporter.Prepare();
         GameObject root = PrefabUtility.LoadPrefabContents(Runtime);
         try
         {
             var generator = root.GetComponent<DynamicInfinityCastle>();
-            generator.roomPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "CorrectedRoom/CorrectedRoom.prefab");
-            generator.corridorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "HallWayWithTurn1/HallWayWithTurn1.prefab");
-            generator.junctionPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "HallWay3Way/HallWay3Way.prefab");
-            generator.doubleStairPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "DoubleStaresBase/DoubleStaresBase.prefab");
-            generator.roofAccessStairPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "SingleStareBase/SingleStareBase.prefab");
+            generator.roomPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "CorrectedRoom.fbx");
+            generator.corridorPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "HallWayWithTurnFixed.fbx");
+            generator.junctionPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "HallWay3Way.fbx");
+            generator.doubleStairPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "DoubleStaresBase.fbx");
+            generator.roofAccessStairPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(Art + "SingleStareBase.fbx");
+            generator.buildingPrefabs = new List<GameObject> { generator.roomPrefab, generator.corridorPrefab,
+                generator.junctionPrefab, generator.doubleStairPrefab, generator.roofAccessStairPrefab };
+            generator.pathPrefabs = new List<GameObject> { AssetDatabase.LoadAssetAtPath<GameObject>(Art + "Path.fbx"),
+                AssetDatabase.LoadAssetAtPath<GameObject>(Art + "Stares.fbx") };
+            generator.mobileDecorationPrefabs.Clear();
+            generator.architectureDistanceModels = new List<GameObject>();
+            generator.architectureDistanceMaterials = new List<Material>();
+            foreach (string name in new[] { "CorrectedRoom", "HallWay3Way", "SingleStareBase", "DoubleStaresBase", "Path", "Stares", "HallWayWithTurnFixed" })
+            {
+                string path = CastleCurrentModelImporter.Folder + "RuntimeLod/" + name + "_LOD2.fbx";
+                var importer = (ModelImporter)AssetImporter.GetAtPath(path);
+                if (importer == null) throw new InvalidOperationException("Run Tools/prepare_castle_distance_meshes.py first: " + path);
+                importer.materialImportMode = ModelImporterMaterialImportMode.None;
+                importer.importAnimation = false; importer.addCollider = false; importer.isReadable = false;
+                importer.SaveAndReimport();
+                generator.architectureDistanceModels.Add(AssetDatabase.LoadAssetAtPath<GameObject>(path));
+                string atlas = CastleCurrentModelImporter.Folder + "RuntimeLod/" + name + "_LOD2Albedo.png";
+                var textureImporter = (TextureImporter)AssetImporter.GetAtPath(atlas);
+                textureImporter.maxTextureSize = 1024; textureImporter.mipmapEnabled = true;
+                textureImporter.textureCompression = TextureImporterCompression.Compressed; textureImporter.SaveAndReimport();
+                string materialPath = CastleCurrentModelImporter.Folder + "RuntimeLod/" + name + "_LOD2.mat";
+                Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+                if (material == null)
+                {
+                    material = new Material(generator.architectureShader);
+                    AssetDatabase.CreateAsset(material, materialPath);
+                }
+                material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(atlas));
+                material.enableInstancing = true; EditorUtility.SetDirty(material);
+                generator.architectureDistanceMaterials.Add(material);
+            }
+            generator.useLearnedDirector = true;
+            const string district = "Assets/InfinityCastle/CastleModules/RuntimeLod/";
+            var districtImporter = (ModelImporter)AssetImporter.GetAtPath(district + "CorrectedRoom_LOD3.fbx");
+            districtImporter.materialImportMode = ModelImporterMaterialImportMode.None;
+            districtImporter.importAnimation = false; districtImporter.addCollider = false; districtImporter.isReadable = false;
+            districtImporter.SaveAndReimport();
+            generator.architectureDistrictModel = AssetDatabase.LoadAssetAtPath<GameObject>(district + "CorrectedRoom_LOD3.fbx");
+            var atlasImporter = (TextureImporter)AssetImporter.GetAtPath(district + "CorrectedRoom_DistrictAlbedo.png");
+            atlasImporter.maxTextureSize = 512; atlasImporter.mipmapEnabled = true;
+            atlasImporter.textureCompression = TextureImporterCompression.Compressed; atlasImporter.SaveAndReimport();
+            Material districtMaterial = AssetDatabase.LoadAssetAtPath<Material>(district + "DistrictRoom.mat");
+            if (districtMaterial == null)
+            {
+                districtMaterial = new Material(generator.architectureShader);
+                AssetDatabase.CreateAsset(districtMaterial, district + "DistrictRoom.mat");
+            }
+            districtMaterial.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(district + "CorrectedRoom_DistrictAlbedo.png"));
+            districtMaterial.enableInstancing = true; EditorUtility.SetDirty(districtMaterial);
+            generator.architectureDistrictMaterial = districtMaterial;
             generator.useBuildingTraversal = true;
             if (!generator.BuildingTraversalEnabled)
                 throw new InvalidOperationException("Prepare supplied architecture before installation.");
             generator.randomNearbyCastle = true;
-            generator.architectureWingPoolSize = 20;
+            generator.architectureWingPoolSize = 96;
+            generator.decorationPoolSize = 0;
+            generator.simultaneousShifts = 3;
             generator.perimeterWalkways = false;
             CastleCurrentModelImporter.ApplyTheme(generator);
+            // Preserve the supplied meshes' authored timber, paper panels and lantern textures.
+            generator.unifiedArchitectureTheme = false;
             PrefabUtility.SaveAsPrefabAsset(root, Runtime);
         }
         finally { PrefabUtility.UnloadPrefabContents(root); }
@@ -58,7 +118,142 @@ public static class InfinityCastleArchitectureValidation
         if (!passed) throw new InvalidOperationException(message);
     }
 
-    public static void Test()
+    public static void Volume()
+    {
+        if (!Application.isBatchMode) throw new InvalidOperationException("Use isolated validation.");
+        report = new StreamWriter(Path.GetFullPath("../building-volume-tests.txt"));
+        try
+        {
+            Install();
+            foreach (int poolSize in new[] { 96 })
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                enteredZones.Clear(); touchingZones.Clear();
+                Physics.simulationMode = SimulationMode.Script;
+                GameObject actor = new("Volume traversal player");
+                var settings = actor.AddComponent<CharacterController>();
+                settings.height = 1.8f; settings.radius = .28f; settings.center = Vector3.up * .93f;
+                settings.skinWidth = .02f; settings.stepOffset = .25f;
+                input = actor.AddComponent<StarterAssetsInputs>();
+                actor.AddComponent<InfinityGravityBody>();
+                player = actor.AddComponent<ThirdPersonController>(); player.GroundLayers = ~0;
+                actor.transform.position = Vector3.up * 15f;
+                GameObject world = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(Runtime));
+                castle = world.GetComponent<DynamicInfinityCastle>(); castle.player = actor.transform;
+                castle.architectureWingPoolSize = poolSize; castle.mobileBudget = true;
+                castle.castleLighting = false; castle.useLearnedDirector = false;
+                castle.periodicRebuilding = false; castle.simultaneousShifts = 0;
+                castle.InitializeCastle(); Frame(30);
+                Check(castle.IsInitialized && castle.BuildingWingCount >= poolSize * .85f,
+                    "Pool " + poolSize + " initializes fully without an index exception");
+                Check(player.Grounded, "Pool " + poolSize + " starts on a solid native roof: " + player.transform.position);
+                Check(castle.ValidateSurroundingCastle(out string coverage), coverage);
+                Check(castle.ValidateDistributedDistricts(out string distribution), distribution);
+                Check(castle.ValidateNoBuildingOverlaps(out string clearance), "Initial playable clearance " + clearance);
+                Check(castle.ValidateBuildingArchitecture(out string topology), topology);
+                int transforms = world.GetComponentsInChildren<Transform>(true).Length;
+                input.jump = true; Frame(150);
+                Check(player.Grounded, "Jump lands on the original roof instead of falling through it");
+                Vector3 before = player.transform.position;
+                actor.GetComponent<InfinityGravityBody>().RestoreDefaultGravity();
+                Vector3 drop = default; bool shaft = false;
+                for (int x = -48; x <= 48 && !shaft; x += 8) for (int z = -48; z <= 48 && !shaft; z += 8)
+                {
+                    Vector3 sample = before + new Vector3(x, 12f, z);
+                    // Query the same streamed collision set the player will have at this location.
+                    player.transform.position = sample; player.ResetFallVelocity();
+                    castle.SimulateCastle(.7f); Physics.SyncTransforms();
+                    int obstructions = Physics.OverlapCapsuleNonAlloc(sample + Vector3.up * .4f, sample + Vector3.up * 1.5f,
+                        .32f, zoneHits, ~0, QueryTriggerInteraction.Ignore);
+                    bool blocked = false;
+                    for (int hit = 0; hit < obstructions; hit++)
+                        if (!zoneHits[hit].transform.IsChildOf(actor.transform)) { blocked = true; break; }
+                    if (blocked) continue;
+                    if (Physics.SphereCast(sample + Vector3.up * .4f, .32f, Vector3.down, out RaycastHit floor, 90f, ~0,
+                        QueryTriggerInteraction.Ignore) && floor.distance > 24f && floor.normal.y > .65f)
+                    {
+                        bool vertical = true;
+                        for (float depth = 0; depth < floor.distance - 2f && vertical; depth += 1.5f)
+                        {
+                            Vector3 at = sample + Vector3.up * (1f - depth);
+                            int overlaps = Physics.OverlapSphereNonAlloc(at, .7f, zoneHits, ~0, QueryTriggerInteraction.Collide);
+                            for (int hit = 0; hit < overlaps; hit++)
+                            {
+                                var zone = zoneHits[hit].GetComponent<InfiniteCastleGrid>();
+                                if (zone != null && zone.isActiveAndEnabled && zone.Contains(at) &&
+                                    Vector3.Dot(-zone.gravityDirection, Vector3.up) < .99f) { vertical = false; break; }
+                            }
+                        }
+                        if (vertical) { drop = sample; shaft = true; }
+                    }
+                }
+                Check(shaft, "A genuine deep shaft exists above already-generated castle geometry");
+                Teleport(drop);
+                float lowest = player.transform.position.y;
+                for (int frame = 0; frame < 300; frame++) { Frame(1); lowest = Mathf.Min(lowest, player.transform.position.y); }
+                Check(player.Grounded && lowest < drop.y - 18f && lowest > drop.y - 120f,
+                    "Deep jump lands on castle beneath: descent=" + (drop.y - lowest) + ", grounded=" + player.Grounded + ", up=" + castle.PlayerUp);
+                Check(castle.BuildingStairJoinCount >= castle.BuildingWingCount - 3,
+                    "Every connected building has a rendered, collidable native-model crossing");
+                Check(world.GetComponentsInChildren<Transform>(true).Length == transforms,
+                    "Runtime generation and deep falls reuse the existing object pool");
+                var testedUp = new HashSet<Vector3Int>();
+                for (int join = 0; join < castle.BuildingStairJoinCount; join++)
+                {
+                    if (!castle.TryGetBuildingJoin(join, out Vector3 exit, out Vector3 entry, out Vector3 up, out _)) continue;
+                    if (!testedUp.Add(Vector3Int.RoundToInt(up))) continue;
+                    InfinityGravityBody body = actor.GetComponent<InfinityGravityBody>();
+                    foreach (InfiniteCastleGrid zone in enteredZones) body.LeaveZone(zone);
+                    enteredZones.Clear(); body.SetGravity(-up, 22f, true, 100f);
+                    actor.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(Vector3.forward, up).sqrMagnitude > .5f ? Vector3.forward : Vector3.right, up);
+                    Teleport(exit - (entry - exit).normalized * .7f + up * .08f);
+                    WalkTo(entry + (entry - exit).normalized * .7f);
+                    Check(player.Grounded, "Native bridge connects two interiors in gravity " + up);
+                }
+                Check(testedUp.Count >= 4, "Real connected routes span multiple gravity orientations: " + testedUp.Count);
+                Check(castle.DirectShift(Vector3.up), "The director can physically move a building without breaking its routes");
+                Frame(240);
+                Check(player.Grounded, "Player stays supported while the director moves their building");
+                Check(castle.ValidateNoBuildingOverlaps(out clearance), "No model intersections after shifting and streaming " + clearance);
+                Check(castle.TryGetDistrictDoorPair(out Vector3 districtExit, out Vector3 districtEntry, out Vector3 districtUp, out Vector3 districtDirection),
+                    "Outer districts contain complete adjoining rooms, not facade meshes");
+                InfinityGravityBody districtGravity = actor.GetComponent<InfinityGravityBody>();
+                foreach (InfiniteCastleGrid zone in enteredZones) districtGravity.LeaveZone(zone);
+                enteredZones.Clear(); districtGravity.SetGravity(-districtUp, 22f, true, 100f);
+                actor.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(Vector3.forward, districtUp).sqrMagnitude > .5f ? Vector3.forward : Vector3.right, districtUp);
+                Teleport(districtExit - districtDirection * 2.5f + districtUp * .08f); Frame(30);
+                WalkTo(districtEntry + districtDirection * 2.5f);
+                Check(player.Grounded && player.Motor.GroundHit.collider != null &&
+                    player.Motor.GroundHit.collider.GetComponentInParent<InfinityCastleBuilder>().name.StartsWith("Physical Castle District Room"),
+                    "Player walks through actual doors and stays supported inside the outer castle rooms");
+                const BindingFlags startupFlags = BindingFlags.Instance | BindingFlags.NonPublic;
+                typeof(DynamicInfinityCastle).GetField("loadingControllerWasEnabled", startupFlags).SetValue(castle, player.enabled);
+                typeof(DynamicInfinityCastle).GetField("startupControlsHeld", startupFlags).SetValue(castle, true);
+                player.enabled = false;
+                bool startupErrorCaught = false;
+                try { typeof(DynamicInfinityCastle).GetMethod("ScheduleCastleWork", startupFlags).Invoke(castle, new object[] { BrokenStartupWork() }); }
+                catch (TargetInvocationException error) when (error.InnerException is InvalidOperationException) { startupErrorCaught = true; }
+                Check(startupErrorCaught && player.enabled && !castle.CastleWorkPending,
+                    "A generation exception clears pending work and releases held player controls");
+            }
+            report.WriteLine("ALL SIX-SIDED VOLUME CHECKS PASSED");
+        }
+        catch (Exception error)
+        {
+            report.WriteLine(error); Debug.LogException(error); report.Dispose(); EditorApplication.Exit(1); return;
+        }
+        report.Dispose();
+    }
+
+    public static void Test() => Volume();
+
+    private static System.Collections.IEnumerator BrokenStartupWork()
+    {
+        yield return null;
+        throw new InvalidOperationException("Intentional startup-lock regression check");
+    }
+
+    private static void LegacyModuleTraversalTest()
     {
         if (!Application.isBatchMode) throw new InvalidOperationException("Use the isolated validation project.");
         report = new StreamWriter(Path.GetFullPath("../building-architecture-tests.txt"));
@@ -441,7 +636,7 @@ public static class InfinityCastleArchitectureValidation
     }
 
     private static CastleArchitectureModule Part(int wing, int index) => castle.GetComponentsInChildren<InfinityCastleBuilder>()
-        .First(piece => piece.name == "Playable Building Wing " + wing.ToString("00"))
+        .First(piece => piece.name.StartsWith("Playable Building Wing " + wing.ToString("00") + " "))
         .GetComponentsInChildren<CastleArchitectureModule>()[index];
 
     private static void CrossSeam(int wing, int from, int to, string message)
@@ -535,7 +730,10 @@ public static class InfinityCastleArchitectureValidation
         if (!Application.isBatchMode) throw new InvalidOperationException("Use isolated preview.");
         Install();
         EditorSceneManager.OpenScene("Assets/StarterAssets/ThirdPersonController/Scenes/Playground.unity", OpenSceneMode.Single);
+        SessionState.SetInt(PreviewPending + ".ClearMode", (int)Camera.main.clearFlags);
+        SessionState.SetBool(PreviewPending + ".Fog", RenderSettings.fog);
         SessionState.SetBool(PreviewPending, true);
+        startupProbe = 0;
         SessionState.SetFloat(PreviewStarted, (float)EditorApplication.timeSinceStartup);
         RestorePreviewCallback();
         EditorApplication.isPlaying = true;
@@ -550,7 +748,7 @@ public static class InfinityCastleArchitectureValidation
     }
     private static void CapturePreview()
     {
-        if (EditorApplication.timeSinceStartup - SessionState.GetFloat(PreviewStarted, 0) > 180)
+        if (EditorApplication.timeSinceStartup - SessionState.GetFloat(PreviewStarted, 0) > 240)
         {
             SessionState.SetBool(PreviewPending, false);
             EditorApplication.update -= CapturePreview;
@@ -558,23 +756,146 @@ public static class InfinityCastleArchitectureValidation
             EditorApplication.Exit(1);
             return;
         }
-        if (!EditorApplication.isPlaying || Time.time < 3f) return;
+        if (!EditorApplication.isPlaying || Time.time <= 0f) return;
+        castle = UnityEngine.Object.FindFirstObjectByType<DynamicInfinityCastle>();
+        if (castle == null) return;
+        try { if (!CheckStartupInput()) return; }
+        catch (Exception error)
+        {
+            SessionState.SetBool(PreviewPending, false); EditorApplication.update -= CapturePreview;
+            Debug.LogException(error); EditorApplication.Exit(1); return;
+        }
+        if (!castle.IsInitialized || castle.CastleWorkPending) return;
         SessionState.SetBool(PreviewPending, false);
         EditorApplication.update -= CapturePreview;
         try
         {
             castle = UnityEngine.Object.FindFirstObjectByType<DynamicInfinityCastle>();
+            if (castle == null || !castle.IsInitialized) throw new InvalidOperationException("Castle initialization failed.");
+            if (Vector3.ProjectOnPlane(castle.player.position - startupProbePosition, Vector3.up).magnitude < .08f)
+                throw new InvalidOperationException("Finishing pool warm-up reset the player's movement back to spawn.");
+            bool connected = castle.ValidateSurroundingCastle(out string coverage);
+            bool clear = castle.ValidateNoBuildingOverlaps(out string overlap);
+            if (castle.BuildingWingCount < 80 || castle.DenseCastleRoomCount < 600 || !castle.ValidateDistributedDistricts(out _))
+                throw new InvalidOperationException("Saved scene overrides underfill the castle: " + castle.BuildingWingCount + "/" + castle.DenseCastleRoomCount);
             Camera camera = Camera.main;
+            if ((int)camera.clearFlags != SessionState.GetInt(PreviewPending + ".ClearMode", -1) ||
+                RenderSettings.fog != SessionState.GetBool(PreviewPending + ".Fog", false))
+                throw new InvalidOperationException("Castle generation changed the user's skybox clear mode or fog.");
+            var pooledTransforms = new HashSet<int>(castle.GetComponentsInChildren<Transform>(true).Select(item => item.GetInstanceID()));
             Capture(camera, "building-architecture-player.png");
             GameObject overview = new("Architecture overview"); camera = overview.AddComponent<Camera>();
             camera.transform.position = castle.player.position + new Vector3(35, 32, -46);
             camera.transform.LookAt(castle.player.position + Vector3.forward * 8f);
             camera.nearClipPlane = .1f; camera.farClipPlane = 600f;
+            camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = RenderSettings.fogColor;
             Capture(camera, "building-architecture-overview.png");
-            File.WriteAllText(Path.GetFullPath("../building-architecture-preview.txt"), "Playground loaded; " + castle.ActiveBuildingCount + " buildings; " + castle.BuildingWingCount + " playable wings.");
+            camera.transform.position = castle.player.position + new Vector3(230f, 180f, -270f);
+            camera.transform.LookAt(castle.player.position); camera.farClipPlane = 800f;
+            bool overviewFog = RenderSettings.fog; RenderSettings.fog = false;
+            Capture(camera, "building-architecture-open-volume.png");
+            RenderSettings.fog = overviewFog;
+            for (int face = 0; face < 6; face++)
+            {
+                Vector3[] axes = { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back };
+                Vector3 direction = axes[face];
+                camera.transform.position = castle.player.position + Vector3.up * 2f;
+                camera.transform.rotation = Quaternion.LookRotation(direction, Mathf.Abs(direction.y) > .5f ? Vector3.forward : Vector3.up);
+                Capture(camera, "castle-face-" + face + ".png");
+            }
+            File.WriteAllText(Path.GetFullPath("../building-architecture-preview.txt"), "Playground loaded; " + castle.ActiveBuildingCount +
+                " modules; " + castle.BuildingWingCount + " playable buildings; model clearance=" + clear + ". " + coverage +
+                "; trained director=" + castle.UsesTrainedDirector + "; learned decisions=" + castle.LearnedDecisions +
+                "; complete district rooms=" + castle.DenseCastleRoomCount + "; district paths=" + castle.DenseCastleCrossingCount +
+                "; generation frames=" + castle.CastleWorkFrames + "; max generation slice(ms)=" + castle.MaxCastleWorkSliceMilliseconds.ToString("F2") +
+                "; max atomic work unit(ms)=" + castle.MaxCastleWorkUnitMilliseconds.ToString("F2") + "; unit=" + castle.MaxCastleWorkUnitName +
+                "; playable after(s)=" + castle.PlayerReadySeconds.ToString("F2") +
+                "; PASS camera always rendering, movement/look work during warm-up, startup fall recovery, no completion teleport");
+            string background = MeasureExposedBackground(camera, castle.player.position + Vector3.up * 2f);
+            File.AppendAllText(Path.GetFullPath("../building-architecture-preview.txt"), "\n" + background);
+            Vector3 initial = castle.player.position;
+            foreach (Vector3 travel in new[] { new Vector3(64, 0, 0), new Vector3(0, 64, 0), new Vector3(0, 0, 64) })
+            {
+                castle.player.position = initial + travel; castle.SimulateCastle(.7f); Physics.SyncTransforms();
+                int steps = 0;
+                while (castle.CastleWorkPending && steps++ < 20000) castle.SimulateCastle(0f);
+                if (castle.CastleWorkPending) throw new InvalidOperationException("Stream work did not finish.");
+                var after = new HashSet<int>(castle.GetComponentsInChildren<Transform>(true).Select(item => item.GetInstanceID()));
+                if (!pooledTransforms.SetEquals(after)) throw new InvalidOperationException("Streaming created or destroyed pooled castle objects.");
+                if (!castle.ValidateDistributedDistricts(out string spread)) throw new InvalidOperationException(spread);
+                background = MeasureExposedBackground(camera, castle.player.position + Vector3.up * 2f);
+                File.AppendAllText(Path.GetFullPath("../building-architecture-preview.txt"), "\nAfter travel " + travel + ": " + background);
+            }
+            File.AppendAllText(Path.GetFullPath("../building-architecture-preview.txt"),
+                "\nPASS Skybox/fog preserved; streamed room/path/physics objects reuse the original pool. Max work slice(ms)=" +
+                castle.MaxCastleWorkSliceMilliseconds.ToString("F2") + "; max streaming work slice(ms)=" + castle.MaxStreamingWorkSliceMilliseconds.ToString("F2"));
+            if (castle.MaxStreamingWorkSliceMilliseconds > 50d) throw new InvalidOperationException("A streamed work slice exceeded 50ms.");
+            if (!connected || !clear) throw new InvalidOperationException(coverage + "; " + overlap);
             EditorApplication.Exit(0);
         }
         catch (Exception error) { Debug.LogException(error); EditorApplication.Exit(1); }
+    }
+
+    private static bool CheckStartupInput()
+    {
+        if (Camera.main == null || !Camera.main.enabled) throw new InvalidOperationException("Startup disabled the rendering camera.");
+        if (!castle.IsPlayerReady)
+        {
+            if (Time.time > 10f) throw new InvalidOperationException("The safe starting room did not release controls within ten seconds.");
+            return false;
+        }
+        var actor = castle.player.GetComponent<ThirdPersonController>();
+        var controls = castle.player.GetComponent<StarterAssetsInputs>();
+        if (!actor.enabled) throw new InvalidOperationException("The starter building is ready but player control is disabled.");
+        if (startupProbe >= 6) return true;
+        if (castle.IsInitialized) throw new InvalidOperationException("Input was not available before the full pool finished warming.");
+        if (startupProbe == 0)
+        {
+            if (!actor.Grounded) return false;
+            startupProbePosition = actor.transform.position; startupProbeTime = Time.time;
+            startupProbeAnalog = controls.analogMovement; controls.analogMovement = true;
+            controls.MoveInput(new Vector2(.3f, 0f)); startupProbe = 1;
+        }
+        else if (startupProbe == 1 && Time.time - startupProbeTime > .35f)
+        {
+            controls.MoveInput(Vector2.zero); controls.analogMovement = startupProbeAnalog;
+            if (Vector3.ProjectOnPlane(actor.transform.position - startupProbePosition, Vector3.up).magnitude < .08f)
+                throw new InvalidOperationException("Movement input did not move the player during background warm-up.");
+            startupProbeRotation = actor.CinemachineCameraTarget.transform.rotation;
+            controls.LookInput(new Vector2(1f, .1f)); startupProbeTime = Time.time; startupProbe = 2;
+        }
+        else if (startupProbe == 2)
+        {
+            if (Quaternion.Angle(startupProbeRotation, actor.CinemachineCameraTarget.transform.rotation) > .05f)
+            {
+                controls.LookInput(Vector2.zero);
+                Vector3 safe = (Vector3)typeof(DynamicInfinityCastle).GetField("startupSafePosition", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(castle);
+                actor.transform.position = safe - Vector3.up * 22f; actor.ResetFallVelocity();
+                startupProbeTime = Time.time; startupProbe = 3;
+            }
+            else if (Time.time - startupProbeTime > 1f) throw new InvalidOperationException("Look input did not rotate the camera during warm-up.");
+        }
+        else if (startupProbe == 3 && Time.time - startupProbeTime > .15f)
+        {
+            if (!actor.Grounded) throw new InvalidOperationException("An unsupported startup fall was not returned to the last safe floor.");
+            actor.transform.position += Vector3.right * 64f; actor.ResetFallVelocity();
+            startupProbeTime = Time.time; startupProbe = 4;
+        }
+        else if (startupProbe == 4 && Time.time - startupProbeTime > .15f)
+        {
+            Vector3 safe = (Vector3)typeof(DynamicInfinityCastle).GetField("startupSafePosition", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(castle);
+            if (Vector3.Distance(actor.transform.position, safe) < 60f)
+                throw new InvalidOperationException("Horizontal travel was incorrectly returned to spawn during warm-up.");
+            actor.transform.SetPositionAndRotation(safe, Quaternion.identity); actor.ResetFallVelocity();
+            startupProbeTime = Time.time; startupProbe = 5;
+        }
+        else if (startupProbe == 5 && Time.time - startupProbeTime > .2f)
+        {
+            if (!actor.Grounded) return false;
+            controls.JumpInput(true); startupProbe = 6;
+            Debug.Log("PASS Startup camera, movement/look, early fall recovery and no horizontal spawn reset. Playable after " + castle.PlayerReadySeconds.ToString("F2") + "s.");
+        }
+        return startupProbe >= 6;
     }
     private static void Capture(Camera camera, string filename)
     {
@@ -586,5 +907,38 @@ public static class InfinityCastleArchitectureValidation
         File.WriteAllBytes(Path.GetFullPath("../" + filename), pixels.EncodeToPNG());
         camera.targetTexture = old; RenderTexture.active = active;
         UnityEngine.Object.DestroyImmediate(pixels); RenderTexture.ReleaseTemporary(texture);
+    }
+
+    private static string MeasureExposedBackground(Camera camera, Vector3 observer)
+    {
+        const int size = 192;
+        RenderTexture texture = RenderTexture.GetTemporary(size, size, 24);
+        RenderTexture previous = RenderTexture.active;
+        var counts = new List<int>(); bool fog = RenderSettings.fog;
+        try
+        {
+            RenderSettings.fog = false; camera.backgroundColor = Color.magenta;
+            camera.fieldOfView = 90f; camera.aspect = 1f; camera.targetTexture = texture;
+            camera.transform.position = observer;
+            foreach (Vector3 axis in new[] { Vector3.right, Vector3.left, Vector3.up, Vector3.down, Vector3.forward, Vector3.back })
+            {
+                camera.transform.rotation = Quaternion.LookRotation(axis, Mathf.Abs(axis.y) > .5f ? Vector3.forward : Vector3.up);
+                camera.Render(); RenderTexture.active = texture;
+                Texture2D pixels = new(size, size, TextureFormat.RGB24, false);
+                pixels.ReadPixels(new Rect(0, 0, size, size), 0, 0); pixels.Apply();
+                int uncovered = pixels.GetPixels32().Count(pixel => pixel.r > 245 && pixel.g < 10 && pixel.b > 245);
+                File.WriteAllBytes(Path.GetFullPath("../castle-coverage-" + counts.Count + ".png"), pixels.EncodeToPNG());
+                UnityEngine.Object.DestroyImmediate(pixels); counts.Add(uncovered);
+            }
+        }
+        finally
+        {
+            camera.targetTexture = null; RenderTexture.active = previous; RenderSettings.fog = fog;
+            RenderTexture.ReleaseTemporary(texture);
+        }
+        string result = "Actual rendered background pixels (six 192x192 views): " + string.Join(",", counts);
+        Debug.Log(result);
+        // Open skybox gaps are intentional. Density is tested by real 3D room distribution, not an enclosure.
+        return result;
     }
 }

@@ -33,7 +33,12 @@ public sealed class InfinityCastleMLAgent : Agent
         behavior.BehaviorType = forTraining ? BehaviorType.Default : model != null ? BehaviorType.InferenceOnly : BehaviorType.HeuristicOnly;
         InfinityCastleMLAgent agent = go.AddComponent<InfinityCastleMLAgent>();
         agent.training = forTraining; agent.seed = seed; agent.HasTrainedModel = model != null;
-        go.SetActive(true); return agent;
+        // Inference-only play must not block while probing a Python training server.
+        bool communicatorEnabled = CommunicatorFactory.Enabled;
+        if (!forTraining && !Academy.IsInitialized) CommunicatorFactory.Enabled = false;
+        try { go.SetActive(true); }
+        finally { CommunicatorFactory.Enabled = communicatorEnabled; }
+        return agent;
     }
     public override void Initialize() { random = new System.Random(seed); Policy.Reset(seed); }
     public override void OnEpisodeBegin()

@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.MLAgents;
 
 public partial class DynamicInfinityCastle
 {
@@ -19,6 +20,14 @@ public partial class DynamicInfinityCastle
     {
         fallbackPolicy.Reset(randomSeed);
         if (useLearnedDirector && Application.isPlaying) learnedDirector = InfinityCastleMLAgent.Create(transform, false, randomSeed);
+    }
+    private void PrimeLearnedPlan()
+    {
+        if (learnedDirector == null) return;
+        ObserveDirector();
+        learnedDirector.RequestPlan();
+        Academy.Instance.EnvironmentStep();
+        if (learnedDirector.PlanReady) learnedDirector.ConsumePlan();
     }
     public void ObserveDirector()
     {

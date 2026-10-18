@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using StarterAssets;
 using UnityEngine;
@@ -78,7 +79,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     [Range(4f, 24f)] public float rebuildTravel = 18f;
     [Header("Android Budget")]
     public bool mobileBudget = true;
-    [Range(48, 192)] public int decorationPoolSize = 192;
+    [Range(0, 192)] public int decorationPoolSize = 0;
     [Range(1, 8)] public int layoutStepsPerFrame = 2;
     [Range(0.5f, 8f)] public float layoutMillisecondsPerFrame = 2f;
 
@@ -169,12 +170,11 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     private static Mesh stairRampMesh;
     private bool previousFog;
     private float previousFogDensity;
-    private Color previousFogColor, previousAmbient;
+    private Color previousFogColor, previousAmbient, previousAmbientSky, previousAmbientEquator, previousAmbientGround;
     private AmbientMode previousAmbientMode;
     private FogMode previousFogMode;
+    private Light previousSun;
     private readonly Dictionary<Material, Material> runtimeMaterials = new();
-    private CameraClearFlags previousClearFlags;
-    private Color previousBackground;
 
     public float LayerSpacing => decorSpacing;
     public Vector3 DistantSpacing => decorGridSpacing;
@@ -204,6 +204,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     public Vector3 PlayerUp => gravity != null ? gravity.Up : Vector3.up;
     public int PoolCapacity { get; private set; }
     public bool IsInitialized => initialized;
+    public bool IsPlayerReady { get; private set; }
+    public double PlayerReadySeconds { get; private set; }
+    private double startupStarted;
     public bool HasPendingLayout => nearbyLayout != null || decorLayout.Count > 0;
     public int CurrentRouteLevel => routeLevel;
     public int LandingGeneration => landingGeneration;
@@ -215,7 +218,13 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     private void Start() => InitializeCastle();
     public void InitializeCastle()
     {
-        if (initialized) return;
+        if (initialized || CastleWorkPending) return;
+        startupStarted = Time.realtimeSinceStartupAsDouble;
+        ScheduleCastleWork(InitializeCastleSteps());
+    }
+
+    private IEnumerator InitializeCastleSteps()
+    {
         buildingPrefabs.RemoveAll(item => item == null);
         pathPrefabs.RemoveAll(item => item == null);
         if (player == null)
@@ -224,7 +233,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             if (found != null) player = found.transform;
         }
         if (player == null || buildingPrefabs.Count == 0)
-        { Debug.LogError("Infinity Castle requires a player and your building prefabs.", this); enabled = false; return; }
+        { Debug.LogError("Infinity Castle requires a player and your building prefabs.", this); enabled = false; yield break; }
         layersInEveryDirection = Mathf.Clamp(layersInEveryDirection, 3, 4);
         catchLayersBelow = Mathf.Clamp(catchLayersBelow, 3, 5);
         balconyWidth = Mathf.Clamp(balconyWidth, 2f, 6f);
@@ -243,16 +252,39 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         if (buildingsParent == null) buildingsParent = transform;
         if (pathsParent == null) pathsParent = transform;
         controller = player.GetComponent<ThirdPersonController>();
+        loadingControllerWasEnabled = controller != null && controller.enabled;
+        startupControlsHeld = controller != null;
+        if (controller != null) controller.enabled = false;
         gravity = player.GetComponent<InfinityGravityBody>();
         if (gravity == null) gravity = player.gameObject.AddComponent<InfinityGravityBody>();
         gravity.defaultGravityStrength = 22f;
-        if (controller != null) { controller.Initialize(); controller.JumpTimeout = Mathf.Min(controller.JumpTimeout, 0.2f); }
+        if (controller != null) { controller.Initialize(); controller.Castle = this; controller.JumpTimeout = Mathf.Min(controller.JumpTimeout, 0.2f); }
+        InitializeLearning();
+        PrimeLearnedPlan();
         mainCamera = Camera.main;
         origin = player.position;
+        if (BuildingTraversalEnabled)
+        {
+            architectureWingPoolSize = Mathf.Clamp(architectureWingPoolSize, 96, mobileBudget ? 96 : 160);
+            roomPrefab = PrepareInnerCastleModule(roomPrefab);
+            yield return null;
+            corridorPrefab = PrepareInnerCastleModule(corridorPrefab);
+            yield return null;
+            junctionPrefab = PrepareInnerCastleModule(junctionPrefab);
+            yield return null;
+            doubleStairPrefab = PrepareInnerCastleModule(doubleStairPrefab);
+            yield return null;
+            roofAccessStairPrefab = PrepareInnerCastleModule(roofAccessStairPrefab);
+            yield return null;
+            buildingPrefabs = new List<GameObject> { roomPrefab, corridorPrefab, junctionPrefab,
+                doubleStairPrefab, roofAccessStairPrefab };
+        }
         ResolveDeckMaterial();
         if (architectureShader == null) architectureShader = Shader.Find("Infinity Castle/Architecture");
         deckMaterial = PooledMaterial(deckMaterial);
         ReadStairs();
+        if (BuildingTraversalEnabled) PrepareStartingBuilding();
+        yield return null;
 
         var samples = new List<InfinityCastleBuilder>();
         float footprint = 0f, largest = 0f;
@@ -263,6 +295,8 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             footprint = Mathf.Max(footprint, bounds.size.x, bounds.size.z);
             largest = Mathf.Max(largest, bounds.size.x, bounds.size.y, bounds.size.z);
             samples.Add(sample);
+            sample.gameObject.SetActive(false);
+            yield return null;
         }
         deckSize = footprint + balconyWidth * 2f;
         maximumBuildingHeight = largest;
@@ -276,7 +310,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         int width = layersInEveryDirection * 2 + 1;
         int floorCount = playableFloorsBelow + playableFloorsAbove + 1;
         int nodeCount = width * width * floorCount;
-        int decorCount = mobileBudget ? Mathf.Clamp(decorationPoolSize, 48, 192) : width * width * width;
+        int decorCount = BuildingTraversalEnabled ? 0 : mobileBudget ? Mathf.Clamp(decorationPoolSize, 0, 64) : width * width * width;
         int reserveCount = Mathf.Clamp(extraPoolPieces, 2, 24);
         if (randomNearbyCastle || BuildingTraversalEnabled) { nodeCount = 0; reserveCount = 0; }
         PoolCapacity = nodeCount + decorCount + reserveCount + landingDistricts.Length * 9 + (randomNearbyCastle && !BuildingTraversalEnabled ? nearbyPoolSize : 0);
@@ -286,6 +320,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             AddBalcony(piece, deckSize, false);
             piece.gameObject.SetActive(false);
             nodePool.Enqueue(new Node { piece = piece });
+            yield return null;
         }
         for (int i = 0; i < decorCount; i++)
         {
@@ -294,9 +329,11 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             InfinityCastleBuilder piece = CreatePiece(art);
             // Background architecture uses the authored balconies, never an extra square plate.
             piece.gameObject.SetActive(false); decorPool.Enqueue(piece);
+            yield return null;
         }
-        int connectionCount = BuildingTraversalEnabled ? 8 : randomNearbyCastle ? nearbyPoolSize * 2 : width * (width - 1) * 2 * floorCount;
-        for (int i = 0; i < connectionCount; i++) linkPool.Enqueue(CreateLink(i));
+        // Warm the other links alongside their buildings, not before any expansion is visible.
+        int connectionCount = BuildingTraversalEnabled ? 3 : randomNearbyCastle ? nearbyPoolSize * 2 : width * (width - 1) * 2 * floorCount;
+        for (int i = 0; i < connectionCount; i++) { linkPool.Enqueue(CreateLink(i)); yield return null; }
         PrewarmLandingDistricts();
         routeCell = Vector2Int.zero; decorCell = Vector3Int.zero;
         routeLevel = 0; routeSignature = RouteWindowSignature();
@@ -305,9 +342,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             foreach (InfinityCastleBuilder sample in samples)
             {
                 sample.gameObject.SetActive(false);
-                if (Application.isPlaying) Destroy(sample.gameObject); else DestroyImmediate(sample.gameObject);
+                // Dormant measurements are retained; generation never destroys pooled objects.
             }
-            InitializeBuildingArchitecture();
+            yield return InitializeBuildingArchitecture();
             if (controller != null) { controller.MoveSpeed = 4f; controller.JumpHeight = 1.7f; }
         }
         else if (randomNearbyCastle)
@@ -323,25 +360,24 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             player.position = start.centre + new Vector3(deckSize * 0.5f - 1.4f, 0.08f, 0f);
         }
         RebuildDecor();
-        if (controller != null) controller.ResetFallVelocity();
+        if (controller != null && !IsPlayerReady) controller.ResetFallVelocity();
         if (castleLighting) ApplyLighting();
-        if (mainCamera != null)
-        {
-            previousClearFlags = mainCamera.clearFlags; previousBackground = mainCamera.backgroundColor;
-            if (RenderSettings.skybox != null) mainCamera.clearFlags = CameraClearFlags.Skybox;
-        }
+        // Leave the scene's skybox, camera clear mode and background under the artist's control.
         previousPlayerPosition = player.position;
         director = GetComponent<InfinityCastleDirector>();
         if (director == null) director = gameObject.AddComponent<InfinityCastleDirector>();
         director.Initialize(randomSeed);
-        InitializeLearning();
         Physics.SyncTransforms();
         initialized = true;
-        if (Application.isPlaying)
-        {
-            InfinityCastleMobileRuntime mobile = gameObject.AddComponent<InfinityCastleMobileRuntime>();
-            mobile.Configure(this);
-        }
+        RestoreStartupControls();
+        if (!IsPlayerReady) { IsPlayerReady = true; PlayerReadySeconds = Time.realtimeSinceStartupAsDouble - startupStarted; }
+        ConfigureCastleMobileControls();
+    }
+
+    private void ConfigureCastleMobileControls()
+    {
+        if (!Application.isPlaying || GetComponent<InfinityCastleMobileRuntime>() != null) return;
+        gameObject.AddComponent<InfinityCastleMobileRuntime>().Configure(this);
     }
 
     private void ResolveDeckMaterial()
@@ -362,14 +398,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     {
         GameObject root = new($"{prefab.name} Castle Module {pieceSerial++:0000}"); root.transform.SetParent(buildingsParent, false);
         GameObject art = Instantiate(prefab, root.transform);
-        art.transform.localPosition = Vector3.zero;
-        bool hasSolidCollision = false;
-        foreach (Collider collider in art.GetComponentsInChildren<Collider>(true))
-            if (!collider.isTrigger) { collider.enabled = true; hasSolidCollision = true; }
-        if (!hasSolidCollision)
-            foreach (MeshFilter filter in art.GetComponentsInChildren<MeshFilter>(true))
-                if (filter.sharedMesh != null) filter.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
-        // The art's authored rotation and scale are never changed.
+        DisableAuthoredLights(art);
+        EnsureSolidColliders(art);
+        // InnerCastle root offsets, rotation and scale are part of each module's alignment.
         InfiniteCastleGrid exteriorGravity = null;
         var exterior = art.GetComponent<CastleArchitectureModule>();
         if (exterior != null && exterior.kind == CastleArchitectureModule.ModuleKind.Exterior)
@@ -380,6 +411,19 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         InfinityCastleBuilder piece = root.AddComponent<InfinityCastleBuilder>(); piece.InitializePooledPiece(this);
         if (exteriorGravity != null) piece.ConfigureMotionGravity(exteriorGravity, enableGravityZones);
         return piece;
+    }
+    private static void EnsureSolidColliders(GameObject art)
+    {
+        bool found = false;
+        foreach (Collider collider in art.GetComponentsInChildren<Collider>(true))
+            if (!collider.isTrigger) { collider.enabled = true; found = true; }
+        if (found) return;
+        foreach (MeshFilter filter in art.GetComponentsInChildren<MeshFilter>(true))
+            if (filter.sharedMesh != null) filter.gameObject.AddComponent<MeshCollider>().sharedMesh = filter.sharedMesh;
+    }
+    private static void DisableAuthoredLights(GameObject art)
+    {
+        foreach (Light light in art.GetComponentsInChildren<Light>(true)) light.enabled = false;
     }
     internal Material PooledMaterial(Material source)
     {
@@ -453,13 +497,27 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         foreach (GameObject prefab in pathPrefabs)
         {
             GameObject sample = new("Path measurement"); sample.transform.SetParent(pathsParent, false);
-            GameObject art = Instantiate(prefab, sample.transform); art.transform.localPosition = Vector3.zero;
+            GameObject art = Instantiate(prefab, sample.transform);
+            DisableAuthoredLights(art);
+            EnsureSolidColliders(art);
             foreach (FloatingStructure legacy in sample.GetComponentsInChildren<FloatingStructure>()) legacy.enabled = false;
             foreach (MeshCollider collider in sample.GetComponentsInChildren<MeshCollider>()) collider.convex = false;
             Bounds bounds = CastleGeometry.RendererBoundsInRoot(sample.transform);
+            float nativeWidth = Mathf.Min(bounds.size.x, bounds.size.z);
+            if (BuildingTraversalEnabled && nativeWidth > .0001f)
+            {
+                art.transform.localScale *= 2.4f / nativeWidth;
+                bounds = CastleGeometry.RendererBoundsInRoot(sample.transform);
+            }
+            else if (bounds.size.magnitude < 2f)
+            {
+                art.transform.localScale *= 100f;
+                bounds = CastleGeometry.RendererBoundsInRoot(sample.transform);
+            }
             Vector3 axis = bounds.size.z >= bounds.size.x ? Vector3.forward : Vector3.right;
             float length = bounds.size.z >= bounds.size.x ? bounds.size.z : bounds.size.x;
             Vector3 first = default, last = default; bool found = false;
+            var floorSamples = new List<Vector3>();
             Collider[] colliders = sample.GetComponentsInChildren<Collider>();
             Physics.SyncTransforms();
             for (int i = 0; i <= 80; i++)
@@ -471,15 +529,30 @@ public partial class DynamicInfinityCastle : MonoBehaviour
                     { best = hit; distance = hit.distance; }
                 if (distance == float.PositiveInfinity || best.normal.y < 0.9f) continue;
                 Vector3 surfacePoint = sample.transform.InverseTransformPoint(best.point);
+                floorSamples.Add(surfacePoint);
                 if (!found) { first = surfacePoint; found = true; }
                 last = surfacePoint;
             }
             if (found)
             {
+                if (prefab.name == "Path")
+                {
+                    // The bridge has tall gates at both ends. Their roofs are not its walking floor.
+                    floorSamples.Sort((a, b) => a.y.CompareTo(b.y));
+                    float floorHeight = floorSamples[floorSamples.Count / 2].y;
+                    float lowAlong = float.PositiveInfinity, highAlong = float.NegativeInfinity;
+                    foreach (Vector3 point in floorSamples)
+                    {
+                        if (Mathf.Abs(point.y - floorHeight) > .12f) continue;
+                        float along = Vector3.Dot(point, axis);
+                        if (along < lowAlong) { lowAlong = along; first = point; }
+                        if (along > highAlong) { highAlong = along; last = point; }
+                    }
+                }
                 if (first.y > last.y) (first, last) = (last, first);
-                Stair spec = new() { prefab = prefab, low = first, high = last,
+                Stair spec = new() { prefab = sample, low = first, high = last,
                     run = Vector3.ProjectOnPlane(last - first, Vector3.up).magnitude, rise = last.y - first.y,
-                    width = bounds.size.z >= bounds.size.x ? bounds.size.x : bounds.size.z,
+                    width = (bounds.size.z >= bounds.size.x ? bounds.size.x : bounds.size.z) * (prefab.name == "Path" ? .68f : 1f),
                     railHeight = Mathf.Clamp(bounds.max.y - last.y, .65f, 1.1f) };
                 if (spec.run > 1f && spec.width > 0.8f)
                 {
@@ -488,10 +561,28 @@ public partial class DynamicInfinityCastle : MonoBehaviour
                         (flightStair == null || prefab.name == "stair_3")) flightStair = spec;
                 }
             }
+            Debug.Log($"Native path {prefab.name}: bounds={bounds}, floor samples={found}, endpoints={first} -> {last}", this);
+            foreach (GameObject distant in architectureDistanceModels)
+            {
+                if (!distant.name.StartsWith(prefab.name + "_LOD")) continue;
+                GameObject lowRoot = new("Complete Path Distance LOD"); lowRoot.transform.SetParent(sample.transform, false);
+                GameObject lowArt = Instantiate(distant, lowRoot.transform);
+                FitInnerCastleArt(lowRoot.transform, lowArt.transform, bounds);
+                int index = architectureDistanceModels.IndexOf(distant);
+                Material material = index < architectureDistanceMaterials.Count ? architectureDistanceMaterials[index] : null;
+                if (material == null) material = art.GetComponentInChildren<Renderer>().sharedMaterial;
+                foreach (Renderer renderer in lowRoot.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = material;
+                sample.AddComponent<LODGroup>().SetLODs(new[] { new LOD(.25f, art.GetComponentsInChildren<Renderer>()),
+                    new LOD(.001f, lowRoot.GetComponentsInChildren<Renderer>()) });
+                sample.GetComponent<LODGroup>().RecalculateBounds();
+                break;
+            }
             // Measurements become dormant templates: no objects are destroyed during play.
             sample.SetActive(false);
         }
-        if (flightStair == null) Debug.LogWarning("No usable stair flight found. Routes will stay level; assign Danish stair_3 for tiered balconies.", this);
+        if (BuildingTraversalEnabled && flatStair == null)
+            throw new InvalidOperationException("Native Path has no collidable walking floor. Check its generated MeshCollider and Read/Write import settings before building.");
+        if (flightStair == null) Debug.LogWarning("No usable stair flight found. Routes will stay level; assign InnerCastle/Stares for tiered balconies.", this);
     }
 
     private Link CreateLink(int index)
@@ -860,14 +951,16 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     private void Update() => SimulateCastle(Time.deltaTime);
     public void SimulateCastle(float dt)
     {
-        if (!initialized || player == null) return;
+        AdvanceCastleWork(!Application.isPlaying);
+        if (player == null) return;
+        if (!initialized) { UpdateStartupSafety(); return; }
         gravity.ResolveGravity();
         if (dt > 0f)
         {
             Vector3 displacement = player.position - previousPlayerPosition;
             // Teleports are not horizontal momentum for fall prediction.
             Vector3 velocity = displacement.sqrMagnitude > 144f ? Vector3.zero : displacement / dt;
-            playerVelocity = Vector3.ClampMagnitude(Vector3.ProjectOnPlane(velocity, gravity.Up), 12f) +
+            playerVelocity = Vector3.ClampMagnitude(Vector3.ProjectOnPlane(velocity, gravity.Up), controller != null && controller.IsUltraJumping ? 60f : 12f) +
                 gravity.Up * Mathf.Clamp(Vector3.Dot(velocity, gravity.Up), -45f, 45f);
         }
         previousPlayerPosition = player.position;
@@ -904,8 +997,10 @@ public partial class DynamicInfinityCastle : MonoBehaviour
                 wingsChanged = true;
             }
         }
-        foreach (LandingDistrict district in landingDistricts)
-            if (district.active) foreach (InfinityCastleBuilder piece in district.pieces) piece.Tick(dt, false);
+        if (landingDistricts != null)
+            foreach (LandingDistrict district in landingDistricts)
+                if (district != null && district.active && district.pieces != null)
+                    foreach (InfinityCastleBuilder piece in district.pieces) if (piece != null) piece.Tick(dt, false);
         if (wingsChanged) { RefreshReservations(); PruneBlockedDecor(); }
         foreach (var pair in decor)
         {
@@ -1132,14 +1227,24 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     {
         previousFog = RenderSettings.fog; previousFogColor = RenderSettings.fogColor; previousFogDensity = RenderSettings.fogDensity;
         previousAmbient = RenderSettings.ambientLight; previousAmbientMode = RenderSettings.ambientMode;
+        previousAmbientSky = RenderSettings.ambientSkyColor;
+        previousAmbientEquator = RenderSettings.ambientEquatorColor;
+        previousAmbientGround = RenderSettings.ambientGroundColor;
         previousFogMode = RenderSettings.fogMode;
-        RenderSettings.fog = true;
-        RenderSettings.fogMode = FogMode.ExponentialSquared;
-        RenderSettings.fogColor = new Color(0.045f, 0.035f, 0.04f); RenderSettings.fogDensity = 1f / (decorSpacing * 2.2f);
-        RenderSettings.ambientMode = AmbientMode.Flat; RenderSettings.ambientLight = new Color(0.32f, 0.25f, 0.22f);
+        previousSun = RenderSettings.sun;
+        // Lighting must not replace the user's skybox or use fog as an enclosing backdrop.
+        RenderSettings.ambientMode = AmbientMode.Trilight;
+        RenderSettings.ambientSkyColor = new Color(0.28f, 0.31f, 0.42f);
+        RenderSettings.ambientEquatorColor = new Color(0.34f, 0.25f, 0.21f);
+        RenderSettings.ambientGroundColor = new Color(0.12f, 0.075f, 0.065f);
+        GameObject moon = new("Castle Moonlight"); moon.transform.SetParent(transform, false);
+        moon.transform.localRotation = Quaternion.Euler(42f, -32f, 0f);
+        Light moonlight = moon.AddComponent<Light>(); moonlight.type = LightType.Directional;
+        moonlight.color = new Color(.68f, .76f, 1f); moonlight.intensity = .65f; moonlight.shadows = LightShadows.None;
+        RenderSettings.sun = moonlight;
         GameObject lamp = new("Castle Lantern Light"); lamp.transform.SetParent(player, false); lamp.transform.localPosition = new Vector3(0f, 3f, 0f);
         Light light = lamp.AddComponent<Light>(); light.type = LightType.Point; light.color = new Color(1f, 0.76f, 0.48f);
-        light.intensity = 5f; light.range = 24f; light.shadows = LightShadows.None;
+        light.intensity = 2.4f; light.range = 14f; light.shadows = LightShadows.None;
     }
     public bool ValidateNoBuildingOverlaps(out string error)
     {
@@ -1148,7 +1253,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         foreach (BuildingWing wing in buildingWings) if (wing.active) { wings.Add(wing); boxes.Add(wing.piece.WorldBounds); }
         for (int i = 0; i < wings.Count; i++) for (int j = i + 1; j < wings.Count; j++)
             if (wings[i].piece.WorldBounds.Intersects(wings[j].piece.WorldBounds) &&
-                (wings[i].group != wings[j].group || BuildingModulesOverlap(wings[i], wings[j])))
+                BuildingModulesOverlap(wings[i], wings[j]))
             { error = $"Playable wings {wings[i].serial} and {wings[j].serial} overlap."; return false; }
         foreach (Node node in nodes.Values) boxes.Add(node.piece.WorldBounds);
         foreach (NearbyNode node in nearbyNodes) boxes.Add(node.piece.WorldBounds);
@@ -1190,6 +1295,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     public bool IsCastleSurface(Collider collider)
     {
         if (collider == null) return false;
+        if (denseRoot != null && collider.transform.IsChildOf(denseRoot)) return true;
         if (collider.GetComponentInParent<InfinityCastleBuilder>() != null || IsLandingDistrictSurface(collider)) return true;
         foreach (BuildingJoin join in buildingJoins)
             if (join.stair != null && collider.transform.IsChildOf(join.stair.root.transform)) return true;
@@ -1213,13 +1319,19 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     }
     private void OnDestroy()
     {
+        ClearCastleWork();
+        RestoreStartupControls();
+        ShutdownDenseDistricts();
         var uniqueMaterials = new HashSet<Material>(runtimeMaterials.Values);
         foreach (Material material in uniqueMaterials)
             if (Application.isPlaying) Destroy(material); else DestroyImmediate(material);
-        if (mainCamera != null && initialized) { mainCamera.clearFlags = previousClearFlags; mainCamera.backgroundColor = previousBackground; }
         if (!initialized || !castleLighting) return;
         RenderSettings.fogMode = previousFogMode;
         RenderSettings.fog = previousFog; RenderSettings.fogColor = previousFogColor; RenderSettings.fogDensity = previousFogDensity;
         RenderSettings.ambientMode = previousAmbientMode; RenderSettings.ambientLight = previousAmbient;
+        RenderSettings.ambientSkyColor = previousAmbientSky;
+        RenderSettings.ambientEquatorColor = previousAmbientEquator;
+        RenderSettings.ambientGroundColor = previousAmbientGround;
+        RenderSettings.sun = previousSun;
     }
 }

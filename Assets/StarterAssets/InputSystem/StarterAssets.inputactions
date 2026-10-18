@@ -36,9 +36,39 @@
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": ""
+                },
+                {
+                    "name": "UltraJump",
+                    "type": "Button",
+                    "id": "619f53ab-599e-4e90-8cc3-65bfbdb45748",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": ""
                 }
             ],
             "bindings": [
+                {
+                    "name": "",
+                    "id": "8e334e65-6816-4f22-93ad-9fd0f2f80d53",
+                    "path": "<Keyboard>/q",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "KeyboardMouse",
+                    "action": "UltraJump",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "934053a2-f35e-4fb1-b878-78673ab03e5f",
+                    "path": "<Gamepad>/buttonNorth",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Gamepad",
+                    "action": "UltraJump",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
                 {
                     "name": "WASD",
                     "id": "b7594ddb-26c9-4ba2-bd5a-901468929edc",

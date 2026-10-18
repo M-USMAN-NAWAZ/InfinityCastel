@@ -49,6 +49,11 @@ public class InfinityCastleBuilder : MonoBehaviour
         if (gravityZone != null) gravityZone.gravityDirection = -transform.up;
         ReservedBounds = WorldBounds;
     }
+    internal void RefreshGeometryBounds()
+    {
+        localBounds = CastleGeometry.RendererBoundsInRoot(transform);
+        ReservedBounds = WorldBounds;
+    }
     public Bounds SweepTo(Vector3 offset)
     {
         Bounds swept = WorldBounds;

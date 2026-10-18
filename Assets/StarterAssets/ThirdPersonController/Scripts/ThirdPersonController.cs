@@ -41,6 +41,15 @@ namespace StarterAssets
         [Header("Jump Forgiveness")]
         public float CoyoteTime = 0.12f;
         public float JumpBuffer = 0.15f;
+        [Header("Castle Ultra Jump")]
+        [Min(1f)] public float UltraJumpHeight = 18f;
+        [Min(1f)] public float UltraJumpSpeed = 26f;
+        [Min(10f)] public float UltraJumpRange = 85f;
+        [System.NonSerialized] public DynamicInfinityCastle Castle;
+        public bool IsUltraJumping { get; private set; }
+        private Vector3 ultraVelocity, ultraStartUp, ultraLandingUp;
+        private float ultraElapsed, ultraDuration;
+        private bool ultraTargeted;
         private StarterAssetsInputs input;
         private InfinityGravityBody gravity;
         private InfinityCharacterMotor motor;
@@ -117,7 +126,15 @@ namespace StarterAssets
         {
             Initialize();
             if (dt <= 0f) return;
+            float untilGravityTurn = ultraDuration * .5f - ultraElapsed;
+            if (IsUltraJumping && ultraTargeted && untilGravityTurn > .0001f && dt > untilGravityTurn + .0001f)
+            {
+                // Integrate both gravity phases exactly even when an Android frame straddles the turn.
+                Simulate(untilGravityTurn); Simulate(dt - untilGravityTurn); return;
+            }
             if (gravity == null) gravity = GetComponent<InfinityGravityBody>();
+            if (IsUltraJumping && ultraTargeted && gravity != null)
+                gravity.SetAirborneGravity(-(ultraElapsed >= ultraDuration * .5f - .0001f ? ultraLandingUp : ultraStartUp));
             if (gravity != null) gravity.ResolveGravity();
             Vector3 targetUp = gravity != null ? gravity.Up : UseExternalGravity ? -ExternalGravityDirection.normalized : Vector3.up;
             float acceleration = gravity != null ? gravity.Strength : Mathf.Abs(Gravity);
@@ -132,7 +149,8 @@ namespace StarterAssets
             {
                 Quaternion displayedBasis = cameraGravityOffset * Quaternion.LookRotation(cameraForward, lastUp);
                 cameraForward = Quaternion.FromToRotation(lastUp, targetUp) * cameraForward;
-                verticalSpeed = 0f; lastUp = targetUp;
+                if (!IsUltraJumping) verticalSpeed = 0f;
+                lastUp = targetUp;
                 if (animateCamera)
                 {
                     // Cancel the instant gravity turn, then ease this correction away in the camera pass.
@@ -148,19 +166,31 @@ namespace StarterAssets
             if (changingGravity) { motor.ClearSupport(); supportMotion = Vector3.zero; }
             Physics.SyncTransforms();
             motor.Depenetrate();
+            if (IsUltraJumping) verticalSpeed = Vector3.Dot(ultraVelocity, targetUp);
             Grounded = verticalSpeed <= 0.1f && motor.CheckGround(targetUp, GroundLayers);
+            if (IsUltraJumping && Grounded && ultraElapsed > .1f) FinishUltraJump();
             groundedTime = Grounded ? CoyoteTime : Mathf.Max(0f, groundedTime - dt);
             jumpCooldown = Mathf.Max(0f, jumpCooldown - dt); jumpBufferTime = Mathf.Max(0f, jumpBufferTime - dt);
-            if (input.jump) { jumpBufferTime = JumpBuffer; input.jump = false; }
+            if (input.ultraJump || input.jump && input.sprint)
+            {
+                input.ultraJump = false; input.jump = false;
+                if (!IsUltraJumping && (Grounded || groundedTime > 0f) && jumpCooldown <= 0f)
+                {
+                    bool launched = Castle != null && Castle.TryUltraJump(cameraTransform != null ? cameraTransform.forward : MovementForward);
+                    if (!launched) LaunchUltraJump(MovementForward * UltraJumpSpeed + targetUp * Mathf.Sqrt(2f * acceleration * UltraJumpHeight),
+                        targetUp, 4f, false);
+                }
+            }
+            else if (input.jump) { jumpBufferTime = JumpBuffer; input.jump = false; }
             if (Grounded) { verticalSpeed = -2f; airborneTime = 0f; jumping = false; }
             else airborneTime += dt;
-            if (jumpBufferTime > 0f && groundedTime > 0f && jumpCooldown <= 0f)
+            if (!IsUltraJumping && jumpBufferTime > 0f && groundedTime > 0f && jumpCooldown <= 0f)
             {
                 verticalSpeed = Mathf.Sqrt(2f * acceleration * JumpHeight);
                 groundedTime = 0f; jumpBufferTime = 0f;
                 jumpCooldown = Mathf.Max(0.05f, JumpTimeout); Grounded = false; jumping = true;
             }
-            verticalSpeed = Mathf.Max(-45f, verticalSpeed - acceleration * dt);
+            if (!IsUltraJumping) verticalSpeed = Mathf.Max(-45f, verticalSpeed - acceleration * dt);
             Vector2 move = Vector2.ClampMagnitude(input.move, 1f);
             float magnitude = input.analogMovement ? move.magnitude : move.sqrMagnitude > 0f ? 1f : 0f;
             speed = Mathf.MoveTowards(speed, (input.sprint ? SprintSpeed : MoveSpeed) * magnitude, SpeedChangeRate * dt);
@@ -173,13 +203,25 @@ namespace StarterAssets
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction, targetUp),
                     1f - Mathf.Exp(-dt / Mathf.Max(0.01f, RotationSmoothTime)));
             }
-            motor.Move((direction * speed + targetUp * verticalSpeed) * dt + supportMotion, targetUp, Grounded, dt);
+            if (IsUltraJumping)
+            {
+                Vector3 step = ultraVelocity * dt - targetUp * (.5f * acceleration * dt * dt);
+                ultraVelocity -= targetUp * (acceleration * dt);
+                Vector3 before = transform.position;
+                motor.Move(step, targetUp, false, dt);
+                ultraElapsed += dt;
+                verticalSpeed = Vector3.Dot(ultraVelocity, targetUp);
+                if (ultraElapsed > ultraDuration + .6f || (transform.position - before - step).sqrMagnitude > .04f)
+                    FinishUltraJump();
+            }
+            else motor.Move((direction * speed + targetUp * verticalSpeed) * dt + supportMotion, targetUp, Grounded, dt);
             if (motor.HitCeiling && verticalSpeed > 0f) verticalSpeed = 0f;
             if (animateCamera)
             {
                 cameraPivotCorrection = previousCameraPosition - transform.TransformPoint(cameraTargetOffset);
                 CinemachineCameraTarget.transform.SetPositionAndRotation(previousCameraPosition, previousCameraRotation);
             }
+            if (changingGravity && gravity != null) gravity.ConfirmAlignment();
             if (animator != null && animator.runtimeAnimatorController != null)
             {
                 animator.SetFloat(SpeedId, speed, 0.1f, dt); animator.SetFloat(MotionId, magnitude);
@@ -212,10 +254,29 @@ namespace StarterAssets
         }
         public void ResetFallVelocity()
         {
+            FinishUltraJump();
             verticalSpeed = 0f; speed = 0f; jumping = false; Grounded = false; groundedTime = 0f;
             alignmentReady = false;
             if (motor != null) motor.ClearSupport();
         }
+        public void LaunchUltraJump(Vector3 velocity, Vector3 landingUp, float duration, bool targeted = true)
+        {
+            Initialize();
+            IsUltraJumping = true; ultraTargeted = targeted;
+            ultraVelocity = velocity; ultraStartUp = lastUp; ultraLandingUp = landingUp.normalized;
+            ultraElapsed = 0f; ultraDuration = duration;
+            verticalSpeed = Vector3.Dot(velocity, lastUp);
+            groundedTime = jumpBufferTime = 0f; jumpCooldown = .25f;
+            Grounded = false; jumping = true; motor.ClearSupport();
+            if (targeted && gravity != null) gravity.SetAirborneGravity(-lastUp);
+        }
+        private void FinishUltraJump()
+        {
+            if (!IsUltraJumping) return;
+            IsUltraJumping = false;
+            if (gravity != null) gravity.ReleaseAirborneGravity();
+        }
+        private void OnDisable() => FinishUltraJump();
         private void OnDestroy()
         {
             if (brain != null && brain.m_WorldUpOverride == cameraUp) brain.m_WorldUpOverride = previousWorldUp;

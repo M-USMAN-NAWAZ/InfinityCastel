@@ -78,7 +78,25 @@ public sealed class InfinityCastleMobileRuntime : MonoBehaviour
         lookRoot.GetComponent<CanvasRenderer>().cullTransparentMesh = false;
         ScreenLook = lookRoot.AddComponent<InfinityScreenLook>(); ScreenLook.Configure(inputs);
         Controls.gameObject.SetActive(true);
+        CreateUltraJumpButton();
         ApplySafeArea();
+    }
+    private void CreateUltraJumpButton()
+    {
+        var root = new GameObject("Ultra Jump", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(UIVirtualButton));
+        RectTransform rect = root.GetComponent<RectTransform>(); rect.SetParent(safeRoot, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
+        rect.anchoredPosition = new Vector2(-350f, 300f); rect.sizeDelta = new Vector2(120f, 80f);
+        root.GetComponent<Image>().color = new Color(.5f, .23f, .055f, .85f);
+        UIVirtualButton button = root.GetComponent<UIVirtualButton>();
+        button.buttonStateOutputEvent = new UIVirtualButton.BoolEvent();
+        button.buttonStateOutputEvent.AddListener(inputs.UltraJumpInput);
+        var label = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        RectTransform labelRect = label.GetComponent<RectTransform>(); labelRect.SetParent(rect, false);
+        labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one; labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
+        Text text = label.GetComponent<Text>(); text.text = "ULTRA\nJUMP"; text.fontSize = 20;
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); text.alignment = TextAnchor.MiddleCenter; text.raycastTarget = false;
+        buttons = safeRoot.GetComponentsInChildren<UIVirtualButton>(true);
     }
     private void Update()
     {
@@ -98,7 +116,7 @@ public sealed class InfinityCastleMobileRuntime : MonoBehaviour
         if (ScreenLook != null) ScreenLook.ResetInput();
         if (joysticks != null) foreach (UIVirtualJoystick joystick in joysticks) if (joystick != null) joystick.ResetInput();
         if (buttons != null) foreach (UIVirtualButton button in buttons) if (button != null) button.ResetInput();
-        inputs.MoveInput(Vector2.zero); inputs.LookInput(Vector2.zero); inputs.JumpInput(false); inputs.SprintInput(false);
+        inputs.MoveInput(Vector2.zero); inputs.LookInput(Vector2.zero); inputs.JumpInput(false); inputs.SprintInput(false); inputs.UltraJumpInput(false);
     }
     private void OnApplicationPause(bool paused) { if (paused) ReleaseInputs(); }
     private void OnApplicationFocus(bool focused) { if (!focused) ReleaseInputs(); }

@@ -46,7 +46,8 @@ Shader "Infinity Castle/Architecture"
                 VertexPositionInputs position = GetVertexPositionInputs(input.positionOS.xyz);
                 output.positionCS = position.positionCS; output.positionWS = position.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
-                output.positionOS = input.positionOS.xyz; output.normalOS = input.normalOS;
+                float3 size = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
+                output.positionOS = input.positionOS.xyz * size; output.normalOS = input.normalOS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap); output.fog = ComputeFogFactor(position.positionCS.z);
                 return output;
             }
@@ -54,7 +55,7 @@ Shader "Infinity Castle/Architecture"
             {
                 half3 normal = normalize(input.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half3 lighting = half3(0.24,0.19,0.16) + max(SampleSH(normal), 0) * 0.2;
+                half3 lighting = half3(0.72,0.62,0.54) + max(SampleSH(normal), 0) * 0.35;
                 lighting += light.color * saturate(dot(normal, light.direction)) * light.shadowAttenuation;
                 #ifdef _ADDITIONAL_LIGHTS
                 for (uint i = 0; i < GetAdditionalLightsCount(); i++)
@@ -91,7 +92,7 @@ Shader "Infinity Castle/Architecture"
                     if (_FinishMode > 2.5 && _FinishMode < 3.5) finish = wood * half3(.48,.58,.68);
                     if (_FinishMode > 3.5 && _FinishMode < 4.5) finish = half3(.48,.28,.08) * detail;
                     if (_FinishMode > 4.5) { finish = paper * half3(1,.7,.36); emission += .65; }
-                    albedo = finish;
+                    albedo = saturate(finish * 1.35 + half3(.035, .025, .018));
                 }
                 return half4(MixFog(albedo * (lighting + emission), input.fog), 1);
             }
