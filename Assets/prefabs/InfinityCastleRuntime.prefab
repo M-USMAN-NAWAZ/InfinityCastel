@@ -47,40 +47,79 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   useBuildingTraversal: 1
-  roomPrefab: {fileID: 919132149155446097, guid: 196996923e8dbf84e97c1c020e8137fc, type: 3}
-  corridorPrefab: {fileID: 919132149155446097, guid: 1b7e095d201ea6a44b98db8f2bbbd3a0, type: 3}
-  junctionPrefab: {fileID: 919132149155446097, guid: 975936022caec2546bef7617ffda48b8, type: 3}
-  doubleStairPrefab: {fileID: 919132149155446097, guid: 05b89c1585fd3ff44a1be5aa00620746, type: 3}
-  roofAccessStairPrefab: {fileID: 919132149155446097, guid: 0a2ed5efa2e233b46923dcba5954b4f0, type: 3}
+  roomPrefab: {fileID: 5513482147443913175, guid: 2b48001b4165d6a44aa74761a57f29ff, type: 3}
+  corridorPrefab: {fileID: 4051230524235101757, guid: 1a4f7abc851e66940937ba20eeb621c8, type: 3}
+  junctionPrefab: {fileID: 4394323055588377301, guid: 9f9e31844c7d7234c8b14364b8ba05ab, type: 3}
+  doubleStairPrefab: {fileID: 3453709837800024467, guid: 98fdaee22e8d78c46a2cd25608c9c390, type: 3}
+  roofAccessStairPrefab: {fileID: 6270150219039433318, guid: a62d4319edc2b3741b8b685a453b31bb, type: 3}
   architectureWingPoolSize: 96
   architectureDistanceModels:
-  - {fileID: 919132149155446097, guid: 499c79b949a35d342be4bee8ea89c9b1, type: 3}
-  - {fileID: 919132149155446097, guid: 94e02f5c97ff51c4fbc1998af7f218b6, type: 3}
-  - {fileID: 919132149155446097, guid: 039aa5d6508e8df4098abcb7824ac7e8, type: 3}
-  - {fileID: 919132149155446097, guid: 2866dd172f6c0fa4aa5d3d2f77f77d59, type: 3}
-  - {fileID: 919132149155446097, guid: 30fed0b1eaae7464fb31bcb5cea68552, type: 3}
-  - {fileID: 919132149155446097, guid: 0118f8649f6fc86449112238db839473, type: 3}
-  - {fileID: 919132149155446097, guid: 933d7025eeb1c374993e279b72400cc1, type: 3}
+  - {fileID: 919132149155446097, guid: 2bb4882a57b19404b81a7b2ea3dcb97a, type: 3}
+  - {fileID: 919132149155446097, guid: ee29e3c103ff8e44e8a2b1da629de2e2, type: 3}
+  - {fileID: 919132149155446097, guid: d0701b715aa764a45a5a45b489353feb, type: 3}
+  - {fileID: 919132149155446097, guid: 20ba6cb0183d38b41bdab95e72b151f6, type: 3}
+  - {fileID: 919132149155446097, guid: c686418a70e31974cbc28140dfaf80ec, type: 3}
+  - {fileID: 919132149155446097, guid: 4707fb3d497e10649a12dd61dec6f33e, type: 3}
+  - {fileID: 919132149155446097, guid: e4c9ede43f2c2fc4ba834b0233c2caaa, type: 3}
   architectureDistanceMaterials:
-  - {fileID: 2100000, guid: 53bbb85d7e657cc4a9761f23500ed335, type: 2}
-  - {fileID: 2100000, guid: 014531a6f849c41409b6f0cbd122b1e1, type: 2}
-  - {fileID: 2100000, guid: bdda91e149cb1cb43ad122c3bdf12df8, type: 2}
-  - {fileID: 2100000, guid: 7b360126b83f2ed43b3ef5bc927ba7a3, type: 2}
-  - {fileID: 2100000, guid: 5a8128464f5a24b4d81af62ef23b462f, type: 2}
-  - {fileID: 2100000, guid: ffe700ed4f64f9f4eb82d39f0924f3b2, type: 2}
-  - {fileID: 2100000, guid: b9e45d769378ed748ad99d0228e32a4a, type: 2}
+  - {fileID: 2100000, guid: b6b7087b98b67964fbda5c12a53e1736, type: 2}
+  - {fileID: 2100000, guid: 790ada6fea2ab1446956d50329d58dbd, type: 2}
+  - {fileID: 2100000, guid: 59bfe398c947ec0429aee2e0ae13a2f9, type: 2}
+  - {fileID: 2100000, guid: e585d165e09d54e4088b66a9cb715bb6, type: 2}
+  - {fileID: 2100000, guid: 47306f7f950a9fa489c6110566f5deda, type: 2}
+  - {fileID: 2100000, guid: 7448768cd24bba745a31b105eba54e7d, type: 2}
+  - {fileID: 2100000, guid: 53d8de7ae58b3194e847172e5ba08de5, type: 2}
+  animateTimberConstruction: 1
+  timberConstructionSeconds: 1.8
+  timberAssemblyModels:
+  - source: {fileID: -3920555075548088813, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}
+    fragments: {fileID: 4300000, guid: 44d7ae525b3b2ee49b6835d8c1586c21, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 2bb4882a57b19404b81a7b2ea3dcb97a, type: 3}
+    fragments: {fileID: 4300000, guid: 9a8db8b785db5d9499b41becfed2df98, type: 2}
+  - source: {fileID: -3920555075548088813, guid: d8efb8a356845c24ea06dfad3e3499a8, type: 3}
+    fragments: {fileID: 4300000, guid: 768e07b013779f44691c4441a9f1355e, type: 2}
+  - source: {fileID: -3920555075548088813, guid: ee29e3c103ff8e44e8a2b1da629de2e2, type: 3}
+    fragments: {fileID: 4300000, guid: 4c36d000b38c3c64691564cf6a1cade1, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 2166817e65069414faccc5235f47c999, type: 3}
+    fragments: {fileID: 4300000, guid: 2fc2b7d738a12ff4f96db30c4029526d, type: 2}
+  - source: {fileID: -3920555075548088813, guid: e4c9ede43f2c2fc4ba834b0233c2caaa, type: 3}
+    fragments: {fileID: 4300000, guid: a1fa5380ee2d9034691082d25d7b8ae9, type: 2}
+  - source: {fileID: -3920555075548088813, guid: af06308a357a5c74f95f9b66f1a3bd34, type: 3}
+    fragments: {fileID: 4300000, guid: 38fce31a30a57624eae9b8be1312130f, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 20ba6cb0183d38b41bdab95e72b151f6, type: 3}
+    fragments: {fileID: 4300000, guid: 472df24934028d54ab2d2f5d51d6a50f, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 04e4cbde56856d54a8a917a28588f268, type: 3}
+    fragments: {fileID: 4300000, guid: 95756d770d2880448b585e4f9a3b3f5e, type: 2}
+  - source: {fileID: -3920555075548088813, guid: d0701b715aa764a45a5a45b489353feb, type: 3}
+    fragments: {fileID: 4300000, guid: c31bad4a38266ad408ce543fa7d94b13, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 1af0c03525449444b90d658de5c5b515, type: 3}
+    fragments: {fileID: 4300000, guid: 5df161e25f67d6c4e88eb93cdf1bb03a, type: 2}
+  - source: {fileID: -3920555075548088813, guid: c686418a70e31974cbc28140dfaf80ec, type: 3}
+    fragments: {fileID: 4300000, guid: 1b81c73ff2a6e92458fcfa89d5c81e1d, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 14f28dac8938e43429ba614be9c96556, type: 3}
+    fragments: {fileID: 4300000, guid: d1fd61819f8216d4ab75544749fc3eff, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 4707fb3d497e10649a12dd61dec6f33e, type: 3}
+    fragments: {fileID: 4300000, guid: 4f85dad678f98044a8e6fc6efbb186a9, type: 2}
+  - source: {fileID: -3920555075548088813, guid: 974b5b05cdb758845aee0f90b75ffa16, type: 3}
+    fragments: {fileID: 4300000, guid: f8c262619074ff848b5c9c543bbe1ec3, type: 2}
+  - source: {fileID: 4300000, guid: 2486db04d1278cb42b5caab763d28241, type: 2}
+    fragments: {fileID: 4300000, guid: 9f678d2825a081f4fbdecbc81f4336a3, type: 2}
+  - source: {fileID: 4300000, guid: 2db35802de6d66a449df53d9655063b2, type: 2}
+    fragments: {fileID: 4300000, guid: bca1f2c16f250e142b19f0279513bbcc, type: 2}
   player: {fileID: 0}
   buildingsParent: {fileID: 1000000000000000005}
   pathsParent: {fileID: 1000000000000000007}
   buildingPrefabs:
-  - {fileID: 919132149155446097, guid: 196996923e8dbf84e97c1c020e8137fc, type: 3}
-  - {fileID: 919132149155446097, guid: 1b7e095d201ea6a44b98db8f2bbbd3a0, type: 3}
-  - {fileID: 919132149155446097, guid: 975936022caec2546bef7617ffda48b8, type: 3}
-  - {fileID: 919132149155446097, guid: 05b89c1585fd3ff44a1be5aa00620746, type: 3}
-  - {fileID: 919132149155446097, guid: 0a2ed5efa2e233b46923dcba5954b4f0, type: 3}
+  - {fileID: 5513482147443913175, guid: 2b48001b4165d6a44aa74761a57f29ff, type: 3}
+  - {fileID: 4051230524235101757, guid: 1a4f7abc851e66940937ba20eeb621c8, type: 3}
+  - {fileID: 4394323055588377301, guid: 9f9e31844c7d7234c8b14364b8ba05ab, type: 3}
+  - {fileID: 3453709837800024467, guid: 98fdaee22e8d78c46a2cd25608c9c390, type: 3}
+  - {fileID: 6270150219039433318, guid: a62d4319edc2b3741b8b685a453b31bb, type: 3}
   pathPrefabs:
-  - {fileID: 919132149155446097, guid: 187f7f15e2a84da428d6ced0f7972ba3, type: 3}
-  - {fileID: 919132149155446097, guid: e368ffe372dbd874b91f4f55a688b902, type: 3}
+  - {fileID: 5206036527056484999, guid: 699d63cd689e61142a5204e35e152e5c, type: 3}
+  - {fileID: 676802633926738023, guid: 35b558fe62386934d9eeb7f43a1d2426, type: 3}
+  - {fileID: 287100196405178442, guid: 242e348a6415e0647916b161a124ee32, type: 3}
+  - {fileID: 1636112946934938736, guid: 95de3c4d42fe19c46ad1163cd15d6c26, type: 3}
   mobileDecorationPrefabs: []
   mobileControlsPrefab: {fileID: 6751388636123340836, guid: 2f7f3dde7ae722a4aafffe20691ad702, type: 3}
   mobileRenderPipeline: {fileID: 11400000, guid: 5e6cbd92db86f4b18aec3ed561671858, type: 2}
@@ -89,37 +128,42 @@ MonoBehaviour:
   deckMaterial: {fileID: 2100000, guid: 76833fdd21516954d8e0b28cbd9ab708, type: 2}
   architectureShader: {fileID: 4800000, guid: 2123dcaff2f346ad9d8232b8098730ad, type: 3}
   architectureFinishes:
-  - source: {fileID: 2100000, guid: 589f4a0d5a898004ea58750517c71c4c, type: 2}
+  - source: {fileID: 2100000, guid: d04c2694d06f43a45bdb57b91dffd979, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: 207e81ea910ed0446bd48ef89a0aaa47, type: 2}
+  - source: {fileID: 2100000, guid: 4074a37b4d71e1d4b810777d66980d33, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: b3d414de884b65547b00757b306739cc, type: 2}
+  - source: {fileID: 2100000, guid: 9b5e2d37c9df9b4448e3d0dae86a6882, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: 2879c565c0d670e49aea82fb9b0e523e, type: 2}
+  - source: {fileID: 2100000, guid: 45de1418b37c59b469e3effcc64f795c, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: a591c4e693230ef4182604b79bdcec06, type: 2}
+  - source: {fileID: 2100000, guid: 3bfb2a0b3f738464881076443357d90f, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: 1166ada53d241f24bba363c97585ce5c, type: 2}
+  - source: {fileID: 2100000, guid: 501837edfffbe0a4993398156842cf1b, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
     finishMode: 1
-  - source: {fileID: 2100000, guid: dc58bf9a8b28a394f928ea18ec112a01, type: 2}
+  - source: {fileID: 2100000, guid: 30dd2fcb5d3e97a4babe0b77324d0df6, type: 2}
+    albedo: {fileID: 0}
+    tint: {r: 1, g: 1, b: 1, a: 1}
+    glow: 0
+    finishMode: 1
+  - source: {fileID: 2100000, guid: 3c55108a0d599d642a0c4d1ec511f160, type: 2}
     albedo: {fileID: 0}
     tint: {r: 1, g: 1, b: 1, a: 1}
     glow: 0
@@ -168,6 +212,8 @@ MonoBehaviour:
   layoutMillisecondsPerFrame: 1
   architectureDistrictModel: {fileID: 919132149155446097, guid: 974b5b05cdb758845aee0f90b75ffa16, type: 3}
   architectureDistrictMaterial: {fileID: 2100000, guid: ca74b90cd7682d84287208de09cf67ae, type: 2}
+  closedShojiMesh: {fileID: 4300000, guid: f82b57f58ebaa4e4db959e3c3d6abcd5, type: 2}
+  closedShojiMaterial: {fileID: 2100000, guid: 1afb172539d61b045b6f40ed91f8dad3, type: 2}
   useLearnedDirector: 1
 --- !u!1 &1000000000000000004
 GameObject:

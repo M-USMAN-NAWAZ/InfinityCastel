@@ -62,7 +62,7 @@ public partial class DynamicInfinityCastle
         foreach (JumpLanding candidate in jumpLandings)
         {
             if (candidate.wing != null) SetBuildingPhysics(candidate.wing, true);
-            if (candidate.room != null && !AcquireDistrictBody(candidate.room)) continue;
+            if (candidate.room != null && !AcquireDistrictBody(candidate.room, priority: true)) continue;
             Physics.SyncTransforms();
             int count = Physics.RaycastNonAlloc(candidate.point + candidate.up * 2f, -candidate.up, jumpHits, 3f, ~0, QueryTriggerInteraction.Ignore);
             RaycastHit landing = default; float nearest = float.PositiveInfinity;

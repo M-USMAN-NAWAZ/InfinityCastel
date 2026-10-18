@@ -37,6 +37,8 @@ public partial class DynamicInfinityCastle
         if (!CastleWorkPending) return;
         double start = Time.realtimeSinceStartupAsDouble;
         bool streaming = initialized;
+        // Loading holds the controls already; a 1 ms streaming budget can otherwise take minutes at 30 fps.
+        double budgetMilliseconds = streaming ? layoutMillisecondsPerFrame : Mathf.Max(8f, layoutMillisecondsPerFrame);
         CastleWorkFrames++;
         try
         {
@@ -53,7 +55,7 @@ public partial class DynamicInfinityCastle
                     { MaxCastleWorkUnitMilliseconds = elapsed; MaxCastleWorkUnitName = next.GetType().Name; }
                 }
             }
-            while (CastleWorkPending && (drain || (Time.realtimeSinceStartupAsDouble - start) * 1000d < layoutMillisecondsPerFrame));
+            while (CastleWorkPending && (drain || (Time.realtimeSinceStartupAsDouble - start) * 1000d < budgetMilliseconds));
         }
         catch { ClearCastleWork(); RestoreStartupControls(); throw; }
         if (!drain)
@@ -76,7 +78,11 @@ public partial class DynamicInfinityCastle
         startupControlsHeld = false;
     }
 
-    private void OnDisable() => RestoreStartupControls();
+    private void OnDisable()
+    {
+        RestoreStartupControls();
+        CancelTimberAssemblies();
+    }
 
     private void UpdateStartupSafety()
     {
@@ -99,10 +105,10 @@ public partial class DynamicInfinityCastle
 
     private void OnGUI()
     {
-        DrawUltraJumpHint();
-        if (initialized || !CastleWorkPending || !BuildingTraversalEnabled) return;
-        GUI.Box(new Rect(0f, 0f, Screen.width, Screen.height), "");
-        GUI.Label(new Rect(Screen.width * .5f - 250f, Screen.height * .5f - 30f, 500f, 80f),
+        if (initialized || !CastleWorkPending || !BuildingTraversalEnabled) { DrawUltraJumpHint(); return; }
+        // Keep the live construction visible instead of dimming the whole scene behind a loading overlay.
+        GUI.Box(new Rect(12f, 12f, Mathf.Min(470f, Screen.width - 24f), 76f), "");
+        GUI.Label(new Rect(24f, 20f, Mathf.Min(450f, Screen.width - 48f), 68f),
             $"Preparing the surrounding castle…\nBuildings: {buildingWings.Count}/{architectureWingPoolSize}; surrounding rooms: {DenseCastleRoomCount}\nControls unlock when the initial layers are ready.");
     }
 
@@ -138,6 +144,7 @@ public partial class DynamicInfinityCastle
             }
         }
         yield return AddNetworkLoops(mobileBudget ? 16 : 28);
+        RefreshNativeDoorways();
         Physics.SyncTransforms();
         Debug.Log($"Castle network: {BuildingWingCount} full buildings, {BuildingRoomCount} room/hall/stair modules, " +
             $"{buildingJoins.Count} physical crossings, {BuildingNetworkLoopCount} alternative-route loops. " +
@@ -229,6 +236,7 @@ public partial class DynamicInfinityCastle
 
     private void ConfigureNetworkBridge(Link link, Vector3 start, Vector3 end, Vector3 up)
     {
+        if (!link.root.activeSelf) ResetTimberLink(link);
         Vector3 delta = end - start;
         Vector3 along = delta.normalized;
         Quaternion facing = Quaternion.LookRotation(along, up);
@@ -321,6 +329,7 @@ public partial class DynamicInfinityCastle
                 Link bridge = linkPool.Dequeue(); ConfigureNetworkBridge(bridge, a.point, b.point, up);
                 buildingJoins.Add(new BuildingJoin { a = a.wing, b = b.wing, from = a.part.module, to = b.part.module,
                     exit = a.part.module.transform.InverseTransformPoint(a.point), entry = b.part.module.transform.InverseTransformPoint(b.point), stair = bridge });
+                nativeDoorsDirty = true;
                 added++;
                 used.Add(i); used.Add(j);
                 break;
@@ -398,6 +407,7 @@ public partial class DynamicInfinityCastle
         wing.physicsNear = near;
         for (int i = 0; i < wing.geometry.Length; i++) wing.geometry[i].enabled = near && wing.collisionEnabled[i];
         UpdateBuildingZones(wing);
+        ApplyDoorwayColliders(wing);
     }
 
     private bool ValidateCastleNetwork(out string error)

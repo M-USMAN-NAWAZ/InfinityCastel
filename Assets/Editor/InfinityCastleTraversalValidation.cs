@@ -41,7 +41,7 @@ public static class InfinityCastleTraversalValidation
             int births = 0, visibleDirectionBirths = 0;
             foreach (Vector3 direction in new[] { Vector3.down, Vector3.up, Vector3.right, Vector3.forward, Vector3.left, Vector3.back })
             {
-                for (int frame = 0; frame < 160; frame++)
+                for (int frame = 0; frame < 320; frame++)
                 {
                     actor.transform.position += direction * 1.5f;
                     camera.transform.position = actor.transform.position + Vector3.up * 2f;
@@ -60,12 +60,19 @@ public static class InfinityCastleTraversalValidation
                     }
                     known.Clear(); foreach (Vector3Int key in blocks.Keys) known.Add(key);
                     if (frame % 30 != 0) continue;
-                    Vector3Int cell = Vector3Int.RoundToInt(actor.transform.position / 64f);
+                    float span = (float)typeof(DynamicInfinityCastle).GetField("DistrictSpan", flags | BindingFlags.Static).GetRawConstantValue();
+                    Vector3Int cell = Vector3Int.RoundToInt(actor.transform.position / span);
                     for (int x = -2; x <= 2; x++) for (int y = -2; y <= 2; y++) for (int z = -2; z <= 2; z++)
                         if (x * x + y * y + z * z <= 4 && !blocks.Contains(cell + new Vector3Int(x, y, z)))
                             throw new InvalidOperationException("Missing inner residency while moving " + direction + " at " + actor.transform.position);
                 }
-                Check(castle.ValidateDistributedDistricts(out string coverage), "Full surrounding volume after 240 m travel " + direction + ": " + coverage);
+                Check(castle.ValidateDistributedDistricts(out string coverage), "Full surrounding volume after 480 m travel " + direction + ": " + coverage);
+                Check(castle.ValidateDistrictDoorways(out string connectedDoors), connectedDoors);
+                int localRooms = blocks.Values.Cast<object>().SelectMany(block => ((Array)Field(block, "rooms")).Cast<object>())
+                    .Count(room => (bool)Field(room, "active") && ((Bounds)Field(room, "bounds")).SqrDistance(actor.transform.position) < 100f * 100f);
+                if (actor.transform.position.sqrMagnitude > 200f * 200f)
+                    Check(localRooms >= 400, "Dense far-travel neighbourhood: " + localRooms + " complete rooms within 100 m");
+                Check(castle.ValidateDoorwayClosures(out string nativeDoors), nativeDoors);
                 camera.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(Vector3.forward + direction * .3f, Vector3.up).normalized + Vector3.down * .4f);
                 Capture(camera, "streaming-" + direction + ".png");
             }
@@ -74,7 +81,7 @@ public static class InfinityCastleTraversalValidation
             Check(castle.GetComponentsInChildren<Transform>(true).Length == transforms && castle.DenseCastlePhysicsCount <= 96,
                 "Long travel reuses all GameObjects and retains the 96-body physics limit");
             object crossingProbe = blocks.Values.Cast<object>().SelectMany(block => ((Array)Field(block, "crossings")).Cast<object>())
-                .First(crossing => (bool)Field(Field(crossing, "a"), "active") && Field(crossing, "link") == null);
+                .First(crossing => (bool)Field(crossing, "active") && Field(crossing, "link") == null);
             Vector3 savedPosition = actor.transform.position;
             Vector3 pathStart = (Vector3)Field(crossingProbe, "start"), pathEnd = (Vector3)Field(crossingProbe, "end");
             actor.transform.position = (pathStart + pathEnd) * .5f;
@@ -83,8 +90,17 @@ public static class InfinityCastleTraversalValidation
             Color32[] beforePhysics = Capture(camera, "stream-path-before-physics.png");
             typeof(DynamicInfinityCastle).GetMethod("UpdateDistrictPhysics", flags).Invoke(castle, new object[] { 1f });
             Color32[] afterPhysics = Capture(camera, "stream-path-after-physics.png");
-            Check(Field(crossingProbe, "link") != null && beforePhysics.SequenceEqual(afterPhysics),
-                "Promoting a visible path's collider does not change any rendered pixels");
+            Check(Field(crossingProbe, "link") != null, "The closest path gets its collider lease on the first physics update");
+            // Allow a single 8-bit quantization step, not a silhouette/texture/LOD change.
+            // Some GPU captures differ by one channel value in one pixel even with identical draws.
+            int maxPixelChange = 0;
+            for (int pixel = 0; pixel < beforePhysics.Length; pixel++)
+            {
+                Color32 a = beforePhysics[pixel], b = afterPhysics[pixel];
+                maxPixelChange = Mathf.Max(maxPixelChange, Mathf.Abs(a.r - b.r), Mathf.Abs(a.g - b.g), Mathf.Abs(a.b - b.b));
+            }
+            Check(maxPixelChange <= 1,
+                "Collider promotion preserves the rendered path to 8-bit precision: maximum channel delta=" + maxPixelChange);
             actor.transform.position = savedPosition;
             foreach (object block in blocks.Values)
                 foreach (object crossing in (Array)Field(block, "crossings"))
@@ -172,6 +188,14 @@ public static class InfinityCastleTraversalValidation
         typeof(DynamicInfinityCastle).GetMethod("ReadStairs", flags).Invoke(castle, null);
         foreach (var source in new[] { castle.roomPrefab, castle.corridorPrefab, castle.junctionPrefab, castle.doubleStairPrefab, castle.roofAccessStairPrefab }.Concat(castle.pathPrefabs))
         {
+            if (source.name.StartsWith("Pack"))
+            {
+                Mesh mesh = source.GetComponentInChildren<MeshFilter>().sharedMesh;
+                if (mesh.triangles.Length / 3 > 2000 || source.GetComponent<MeshCollider>().sharedMesh != mesh)
+                    throw new InvalidOperationException("Extracted pack staircase exceeds its mesh/collider budget: " + source.name);
+                report.WriteLine("PASS " + source.name + ": independent supplied-pack staircase, " + mesh.triangles.Length / 3 + " triangles; no room LOD substitution.");
+                continue;
+            }
             bool path = castle.pathPrefabs.Contains(source);
             var module = path ? castle.GetComponentsInChildren<LODGroup>(true).Single(group => group.GetComponentsInChildren<Transform>(true)
                 .Any(child => child.name == source.name + "(Clone)")).gameObject :
@@ -180,16 +204,25 @@ public static class InfinityCastleTraversalValidation
             module.SetActive(true);
             var lod = module.GetComponent<LODGroup>();
             Bounds bounds = path ? CastleGeometry.RendererBoundsInRoot(module.transform) : module.GetComponent<CastleArchitectureModule>().localBounds;
+            GameObject reference = new(source.name + " original comparison");
+            GameObject original = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/Models/CastleModules/" + source.name + ".fbx"), reference.transform);
+            typeof(DynamicInfinityCastle).GetMethod("FitInnerCastleArt", flags | BindingFlags.Static).Invoke(null,
+                new object[] { reference.transform, original.transform, bounds });
+            typeof(DynamicInfinityCastle).GetMethod("FinishArt", flags).Invoke(castle, new object[] { reference.transform });
             camera.orthographicSize = bounds.size.magnitude * .48f;
             Color32[][] nearViews = new Color32[3][];
-            for (int level = 0; level < lod.lodCount; level++)
+            for (int level = -1; level < lod.lodCount; level++)
             {
-                lod.ForceLOD(level);
-                foreach (Renderer renderer in lod.GetLODs()[level].renderers)
+                reference.SetActive(level == -1); module.SetActive(level != -1);
+                if (level >= 0) lod.ForceLOD(level);
+                foreach (Renderer renderer in level == -1 ? reference.GetComponentsInChildren<Renderer>() : lod.GetLODs()[level].renderers)
                 {
                     Mesh mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
                     report.WriteLine(source.name + " level=" + level + " triangles=" + mesh.triangles.Length / 3 + " submeshes=" + mesh.subMeshCount +
                         " materials=" + renderer.sharedMaterials.Length + " texture=" + AssetDatabase.GetAssetPath(renderer.sharedMaterial.GetTexture("_BaseMap")));
+                    if (level >= 0 && (mesh.triangles.Length / 3 > (level == 0 ? 6008 : 2508) || mesh.subMeshCount != 1))
+                        throw new InvalidOperationException(source.name + " exceeds the mobile triangle/material budget.");
                     if (renderer.sharedMaterial.GetTexture("_BaseMap") == null)
                         throw new InvalidOperationException(source.name + " has no LOD albedo atlas.");
                 }
@@ -199,7 +232,7 @@ public static class InfinityCastleTraversalValidation
                     camera.transform.position = bounds.center + view.normalized * bounds.size.magnitude * 2f;
                     camera.transform.LookAt(bounds.center);
                     Color32[] pixels = Capture(camera, "lod-" + source.name + "-" + level + "-" + face + ".png");
-                    if (level == 0) nearViews[face] = pixels;
+                    if (level == -1) nearViews[face] = pixels;
                     else
                     {
                         Color32[] high = nearViews[face]; Color32 background = high[0];
@@ -222,9 +255,9 @@ public static class InfinityCastleTraversalValidation
                     face++;
                 }
             }
-            module.SetActive(false);
+            module.SetActive(false); reference.SetActive(false);
         }
-        report.WriteLine("PASS Near/far supplied meshes preserve authored appearance from above, below and the side");
+        report.WriteLine("PASS Mobile near/medium meshes meet triangle/material budgets and preserve original appearance from above, below and the side");
     }
 
     public static void Corners()

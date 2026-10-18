@@ -1,0 +1,7 @@
+{
+  "model": "Path",
+  "pieces": 60,
+  "visual_triangles": 21168,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}

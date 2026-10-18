@@ -44,6 +44,9 @@ public sealed class InfinityCastlePlayerCheck : MonoBehaviour
         DynamicInfinityCastle castle = FindFirstObjectByType<DynamicInfinityCastle>();
         Check(castle != null, "Saved Playground includes the runtime generator");
         while (!castle.IsPlayerReady) yield return null;
+        File.AppendAllText(report, "MEASURE Full startup seconds=" + castle.PlayerReadySeconds.ToString("F2") +
+            "; work frames=" + castle.CastleWorkFrames + "; max work unit ms=" + castle.MaxCastleWorkUnitMilliseconds.ToString("F2") +
+            "; unit=" + castle.MaxCastleWorkUnitName + "\n");
         Check(castle.IsInitialized && castle.DenseCastleRoomCount >= 500 && castle.PreparedCastleLayerCount >= 2,
             "Controls unlock after the surrounding volume and multiple full lower layers exist");
         var player = castle.player.GetComponent<ThirdPersonController>();
@@ -113,7 +116,7 @@ public sealed class InfinityCastlePlayerCheck : MonoBehaviour
                 player.transform.position += direction * 1.5f;
                 yield return null;
                 if (frame < 120 || frame % 30 != 0) continue;
-                Vector3Int cell = Vector3Int.RoundToInt(player.transform.position / 64f);
+                Vector3Int cell = Vector3Int.RoundToInt(player.transform.position / DynamicInfinityCastle.DistrictSpan);
                 bool ready = true;
                 for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++)
                     if (x * x + y * y + z * z <= 1 && !blocks.Contains(cell + new Vector3Int(x, y, z))) ready = false;

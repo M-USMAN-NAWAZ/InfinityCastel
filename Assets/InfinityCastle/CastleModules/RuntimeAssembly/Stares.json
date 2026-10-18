@@ -1,0 +1,7 @@
+{
+  "model": "Stares",
+  "pieces": 40,
+  "visual_triangles": 16885,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}

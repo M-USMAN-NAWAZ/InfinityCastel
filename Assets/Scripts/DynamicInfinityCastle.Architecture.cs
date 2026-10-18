@@ -22,6 +22,11 @@ public partial class DynamicInfinityCastle
         public Matrix4x4 rootFromPart;
         public Quaternion rootRotation;
         public bool reachable = true;
+        public Renderer[] constructionRenderers = System.Array.Empty<Renderer>();
+        public bool assemblySeen;
+        public Vector4 construction;
+        public int openDoorMask;
+        public BoxCollider[] closedDoors;
     }
     private sealed class BuildingWing
     {
@@ -107,6 +112,7 @@ public partial class DynamicInfinityCastle
     private void PrepareStartingBuilding()
     {
         if (buildingWings.Count > 0) return;
+        InitializeTimberAssemblies();
         // Also repair an already-open Playground scene still holding the old blue fog preset.
         if (RenderSettings.fog && Mathf.Approximately(RenderSettings.fogDensity, .025f) &&
             RenderSettings.fogColor == new Color(.4862745f, .69411767f, .8117647f, 1f))
@@ -181,6 +187,8 @@ public partial class DynamicInfinityCastle
                 module.kind == CastleArchitectureModule.ModuleKind.Corridor)
                 AddWalkableSurface(art.transform, module.floorPoint, module.floorSize);
             var part = new BuildingPart { module = module };
+            part.constructionRenderers = art.GetComponentsInChildren<Renderer>(true);
+            PrepareTimberRenderers(part.constructionRenderers);
             part.floorZone = CreateBuildingZone(art.transform, "Room Gravity", module.floorPoint, module.floorSize,
                 module.kind == CastleArchitectureModule.ModuleKind.Stair ? 8f : 3f,
                 module.kind != CastleArchitectureModule.ModuleKind.Stair);
@@ -494,6 +502,7 @@ public partial class DynamicInfinityCastle
         UpdateBuildingZones(wing);
         wing.collisionEnabled = new bool[wing.geometry.Length];
         for (int i = 0; i < wing.geometry.Length; i++) wing.collisionEnabled[i] = wing.geometry[i].enabled;
+        PrepareDoorwayClosures(wing);
         root.SetActive(false);
         return wing;
     }
@@ -647,6 +656,8 @@ public partial class DynamicInfinityCastle
 
     private void PlaceBuildingWing(BuildingWing wing, Vector3 floor, Quaternion orientation)
     {
+        nativeDoorsDirty = true;
+        ResetTimberConstruction(wing);
         SetBuildingPhysics(wing, true);
         wing.piece.Place(floor + orientation * wing.localBounds.center, orientation);
         wing.active = true; wing.carried = false; wing.group = ++buildingGroupSerial;
@@ -753,6 +764,7 @@ public partial class DynamicInfinityCastle
                 join.stair.root.SetActive(false); linkPool.Enqueue(join.stair);
             }
             buildingJoins.RemoveAt(i);
+            nativeDoorsDirty = true;
         }
         wing.piece.StopShift(); wing.piece.gameObject.SetActive(false); wing.active = false;
         wing.streamingLayer = false;
@@ -891,6 +903,7 @@ public partial class DynamicInfinityCastle
                 PlaceBuildingWing(wing, floor, orientation);
                 buildingJoins.Add(new BuildingJoin { a = source, b = wing, stair = bridge, from = module, to = target,
                     exit = selected.position + (rooftop ? module.roofPoint : Vector3.zero), entry = targetPort.position });
+                nativeDoorsDirty = true;
                 RefreshReservations();
                 yield return true; yield break;
             }

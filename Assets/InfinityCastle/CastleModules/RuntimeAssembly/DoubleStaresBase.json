@@ -1,0 +1,7 @@
+{
+  "model": "DoubleStaresBase",
+  "pieces": 51,
+  "visual_triangles": 15844,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}

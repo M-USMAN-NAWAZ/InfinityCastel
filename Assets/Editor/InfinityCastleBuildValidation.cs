@@ -47,7 +47,7 @@ public static class InfinityCastleBuildValidation
     }
     public static void AndroidBuild()
     {
-        string output = Path.GetFullPath("../../Builds/InfinityCastle-Android-streaming.apk");
+        string output = Path.GetFullPath("../../Builds/InfinityCastle-Android-mobile-meshes.apk");
         Directory.CreateDirectory(Path.GetDirectoryName(output));
         EditorUserBuildSettings.buildAppBundle = false;
         Build(BuildTarget.Android, output, BuildOptions.None);

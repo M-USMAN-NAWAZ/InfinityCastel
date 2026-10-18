@@ -16,17 +16,20 @@ public sealed class CastleRuntimeModelImporter : AssetPostprocessor, IPreprocess
     public int callbackOrder => 0;
     private void OnPreprocessModel()
     {
-        if (!assetPath.StartsWith("Assets/Models/CastleModules/", StringComparison.Ordinal)) return;
+        if (!assetPath.StartsWith("Assets/Models/CastleModules/", StringComparison.Ordinal) &&
+            !assetPath.StartsWith(CastleCurrentModelImporter.Folder + "RuntimeMobile/", StringComparison.Ordinal)) return;
         var importer = (ModelImporter)assetImporter;
-        importer.isReadable = true;
-        importer.addCollider = true;
+        bool physical = !assetPath.EndsWith("_LOD2.fbx", StringComparison.Ordinal);
+        importer.isReadable = physical;
+        importer.addCollider = physical;
     }
     public void OnPreprocessBuild(BuildReport report) => Prepare();
     public static void Prepare()
     {
+        foreach (string folder in new[] { "Assets/Models/CastleModules/", CastleCurrentModelImporter.Folder + "RuntimeMobile/" })
         foreach (string name in new[] { "CorrectedRoom", "HallWayWithTurnFixed", "HallWay3Way", "DoubleStaresBase", "SingleStareBase", "Path", "Stares" })
         {
-            string path = "Assets/Models/CastleModules/" + name + ".fbx";
+            string path = folder + name + ".fbx";
             var importer = AssetImporter.GetAtPath(path) as ModelImporter;
             if (importer == null) throw new BuildFailedException("Missing runtime castle model: " + path);
             if (importer.isReadable && importer.addCollider) continue;

@@ -116,6 +116,8 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         public CastleWalkableSurface landing;
         public Bounds bounds;
         public Renderer[] renderers;
+        public bool assemblySeen;
+        public Vector4 construction;
     }
     private sealed class LandingDistrict
     {
@@ -439,6 +441,11 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         }
         string colour = source.HasProperty("_BaseColor") ? "_BaseColor" : "_Color";
         if (source.HasProperty(colour)) material.SetColor("_BaseColor", source.GetColor(colour));
+        // Preserve explicitly finished pack stairs/door panels when the room theme override is off.
+        foreach (string property in new[] { "_WoodMap", "_PaperMap" })
+            if (source.HasProperty(property)) material.SetTexture(property, source.GetTexture(property));
+        foreach (string property in new[] { "_ThemeStrength", "_FinishMode", "_Glow" })
+            if (source.HasProperty(property)) material.SetFloat(property, source.GetFloat(property));
         if (unifiedArchitectureTheme)
         {
             material.SetTexture("_WoodMap", themeWoodTexture); material.SetTexture("_PaperMap", themePaperTexture);
@@ -556,7 +563,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
                     railHeight = Mathf.Clamp(bounds.max.y - last.y, .65f, 1.1f) };
                 if (spec.run > 1f && spec.width > 0.8f)
                 {
-                    if (spec.rise < 0.15f && flatStair == null) flatStair = spec;
+                    if (prefab.name == "PackFlatStair") districtFlatStair = spec;
+                    else if (prefab.name == "PackStairFlight") districtFlightStair = spec;
+                    else if (spec.rise < 0.15f && flatStair == null) flatStair = spec;
                     if (spec.rise > 0.5f && spec.rise / spec.run < 0.78f &&
                         (flightStair == null || prefab.name == "stair_3")) flightStair = spec;
                 }
@@ -617,6 +626,8 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         InfiniteCastleGrid zone = root.AddComponent<InfiniteCastleGrid>();
         zone.enabled = false;
         link.renderers = root.GetComponentsInChildren<Renderer>(true);
+        PrepareTimberRenderers(link.renderers); timberLinks.Add(link);
+        ResetTimberLink(link);
         root.SetActive(false); return link;
     }
 
@@ -1011,6 +1022,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         ProcessDecorLayout();
         CompleteCastleRebuild();
         director.Tick(dt, this, Mathf.Max(0, simultaneousShifts - moving), playerVelocity);
+        if (BuildingTraversalEnabled && nativeDoorsDirty) RefreshNativeDoorways();
     }
     public bool DirectShift(Vector3 preferredDirection)
     {

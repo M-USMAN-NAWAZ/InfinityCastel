@@ -1,0 +1,7 @@
+{
+  "model": "HallWayWithTurnFixed",
+  "pieces": 45,
+  "visual_triangles": 18984,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}
