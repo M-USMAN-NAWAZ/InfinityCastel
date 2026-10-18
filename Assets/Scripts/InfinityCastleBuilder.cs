@@ -9,6 +9,7 @@ public class InfinityCastleBuilder : MonoBehaviour
     private Quaternion rotationStart, rotationEnd;
     private float elapsed, duration;
     private Renderer[] renderers;
+    private bool renderingEnabled = true;
     private InfiniteCastleGrid gravityZone;
     private bool gravityEnabled;
     public InfiniteCastleGrid MotionGravityZone => gravityZone;
@@ -110,6 +111,12 @@ public class InfinityCastleBuilder : MonoBehaviour
         if (elapsed >= duration) { IsMoving = false; ReservedBounds = WorldBounds; }
     }
     public void StopShift() { IsMoving = false; ReservedBounds = WorldBounds; }
+    internal void SetRendering(bool visible)
+    {
+        if (renderingEnabled == visible || renderers == null) return;
+        renderingEnabled = visible;
+        foreach (Renderer renderer in renderers) renderer.enabled = visible;
+    }
 }
 
 public enum CastleMotionMode { Still }

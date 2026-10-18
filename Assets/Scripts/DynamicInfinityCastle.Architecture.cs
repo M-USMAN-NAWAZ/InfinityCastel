@@ -5,6 +5,7 @@ using UnityEngine;
 
 public partial class DynamicInfinityCastle
 {
+    private const int ArchitectureLayerReserveCount = 4;
     [Header("Building Traversal")]
     public bool useBuildingTraversal = true;
     public GameObject roomPrefab, corridorPrefab, junctionPrefab, doubleStairPrefab, roofAccessStairPrefab;
@@ -34,9 +35,12 @@ public partial class DynamicInfinityCastle
         public Collider[] geometry;
         public bool[] collisionEnabled;
         public int serial, group, revision;
+        public int lastMotion = -10;
+        public float motionRestUntil;
         public Transform content;
         public Vector3 baseScale;
         public bool active, carried, physicsNear = true;
+        public bool streamingLayer;
         public Vector3 Floor => parts[0].module.WorldFloor;
         public Vector3 Up => piece.transform.up;
     }
@@ -63,6 +67,9 @@ public partial class DynamicInfinityCastle
     private readonly List<BuildingWing> buildingWings = new();
     private readonly List<BuildingJoin> buildingJoins = new();
     private readonly List<BuildingWing> movingWingGroup = new();
+    private readonly List<BuildingWing> motionCandidates = new();
+    private System.Random architectureRandom;
+    private System.Random ArchitectureRandom => architectureRandom ??= new System.Random(randomSeed ^ 0x37a15);
     private readonly List<Bounds> wingSweeps = new();
     private readonly Queue<BuildingWing> buildingWave = new();
     private readonly HashSet<int> waveGroups = new();
@@ -71,6 +78,7 @@ public partial class DynamicInfinityCastle
     private float architectureStreamClock;
     private int architectureStreamRevision;
     private float buildingLayoutClock;
+    private float buildingMotionClock;
     private int buildingMotionSerial, buildingGroupSerial;
     private bool buildingWaveActive;
     private Vector3 buildingWaveDirection;
@@ -124,8 +132,7 @@ public partial class DynamicInfinityCastle
         startupSafePosition = player.position; startupSafeUp = Vector3.up; startupSafeRotation = player.rotation;
         Physics.SyncTransforms();
         ConfigureCastleMobileControls();
-        IsPlayerReady = true; PlayerReadySeconds = Time.realtimeSinceStartupAsDouble - startupStarted;
-        RestoreStartupControls();
+        // Keep the loading state until the surrounding volume and lower layers exist.
     }
 
     private IEnumerator InitializeBuildingArchitecture()
@@ -136,7 +143,7 @@ public partial class DynamicInfinityCastle
             BuildingWing wing = CreateBuildingWing(i); buildingWings.Add(wing);
             yield return null;
             for (int link = 0; link < 3; link++) { linkPool.Enqueue(CreateLink(i * 3 + link)); yield return null; }
-            if (i >= architectureWingPoolSize - 2) continue;
+            if (i >= architectureWingPoolSize - ArchitectureLayerReserveCount) continue;
             Vector3 target = NetworkTarget(i, player.position, 20f + Mathf.Sqrt(i) * 3f);
             if (i > architectureWingPoolSize / 3) target = FindCastleGap(i, player.position + Vector3.up * 1.8f);
             // Publish each real, connected building while the rest of the pool warms.
@@ -144,6 +151,9 @@ public partial class DynamicInfinityCastle
         }
         foreach (BuildingWing wing in buildingWings) PoolCapacity += wing.parts.Count;
         yield return BuildCastleNetwork();
+        TryPrepareCastleLayer(84f, true);
+        TryPrepareCastleLayer(168f, true);
+        TryPrepareCastleLayer(252f, true);
         yield return InitializeDenseDistricts();
         Physics.SyncTransforms();
         RefreshReservations();
@@ -319,11 +329,7 @@ public partial class DynamicInfinityCastle
             }
         }
         Part(roomPrefab, Vector3.zero, Quaternion.identity);
-        if (serial >= architectureWingPoolSize - 2)
-        {
-            Rooftop(0);
-        }
-        else if (serial == 0)
+        if (serial == 0)
         {
             Join(0, roomPrefab, DirectionPort(wing.parts[0].module, Vector3.left), matchFacing: true);
             Join(0, roofAccessStairPrefab, DirectionPort(wing.parts[0].module, Vector3.forward), stair: true);
@@ -367,7 +373,7 @@ public partial class DynamicInfinityCastle
             GravityRoom(roofRoom);
         }
         bool exteriorAdded = false;
-        for (int source = wing.parts.Count - 1; serial < architectureWingPoolSize - 2 && source >= 0 && !exteriorAdded; source--)
+        for (int source = wing.parts.Count - 1; serial < architectureWingPoolSize - ArchitectureLayerReserveCount && source >= 0 && !exteriorAdded; source--)
         {
             BuildingPart part = wing.parts[source];
             if (!part.reachable || part.module.kind == CastleArchitectureModule.ModuleKind.Stair ||
@@ -405,7 +411,7 @@ public partial class DynamicInfinityCastle
         CastleArchitectureModule landing = doubleStairPrefab.GetComponent<CastleArchitectureModule>();
         var landingEntry = UpperPort(landing);
         bool landingAdded = false;
-        for (int source = 0; serial >= 6 && serial < architectureWingPoolSize - 2 && source < wing.parts.Count && !landingAdded; source++)
+        for (int source = 0; serial >= 6 && serial < architectureWingPoolSize - ArchitectureLayerReserveCount && source < wing.parts.Count && !landingAdded; source++)
         {
             BuildingPart part = wing.parts[source];
             if (!part.reachable || part.module.kind != CastleArchitectureModule.ModuleKind.Room ||
@@ -425,7 +431,7 @@ public partial class DynamicInfinityCastle
             }
         }
         Vector3Int shape = new(serial, plan, LayoutPolicy.Direction);
-        if (serial > 0 && serial < architectureWingPoolSize - 2)
+        if (serial > 0 && serial < architectureWingPoolSize - ArchitectureLayerReserveCount)
         {
             int extensions = 1 + Mathf.FloorToInt(Hash(shape, 404) * 4f);
             for (int extension = 0; extension < extensions; extension++)
@@ -716,7 +722,7 @@ public partial class DynamicInfinityCastle
     private BuildingWing AvailableBuildingWing(bool emergency = false)
     {
         if (mainCamera != null) GeometryUtility.CalculateFrustumPlanes(mainCamera, cameraPlanes);
-        int reserveStart = Mathf.Min(buildingWings.Count, architectureWingPoolSize - 2);
+        int reserveStart = Mathf.Min(buildingWings.Count, architectureWingPoolSize - ArchitectureLayerReserveCount);
         if (emergency)
         {
             for (int i = reserveStart; i < buildingWings.Count; i++) if (!buildingWings[i].active) return buildingWings[i];
@@ -724,8 +730,8 @@ public partial class DynamicInfinityCastle
             {
                 BuildingWing wing = buildingWings[i];
                 float separation = (wing.Floor - player.position).sqrMagnitude;
-                if (wing.piece.IsMoving || IsBuildingSupport(wing) || separation < 70f * 70f) continue;
-                if (mainCamera != null && separation < 160f * 160f && GeometryUtility.TestPlanesAABB(cameraPlanes, wing.piece.WorldBounds)) continue;
+                if (wing.streamingLayer || wing.piece.IsMoving || IsBuildingSupport(wing) || separation < 70f * 70f) continue;
+                if (!CanRecycleBuildingWing(wing)) continue;
                 RetireBuildingWing(wing);
                 return wing;
             }
@@ -749,6 +755,15 @@ public partial class DynamicInfinityCastle
             buildingJoins.RemoveAt(i);
         }
         wing.piece.StopShift(); wing.piece.gameObject.SetActive(false); wing.active = false;
+        wing.streamingLayer = false;
+    }
+
+    private bool CanRecycleBuildingWing(BuildingWing wing)
+    {
+        Bounds appearance = wing.piece.WorldBounds;
+        foreach (BuildingJoin join in buildingJoins)
+            if (join.stair != null && (join.a == wing || join.b == wing)) appearance.Encapsulate(join.stair.bounds);
+        return CanRecycleCastleBounds(appearance);
     }
 
     private int GroupSize(BuildingWing wing)
@@ -784,7 +799,7 @@ public partial class DynamicInfinityCastle
                 }
         if (includePlayer && box.Intersects(PlayerSafetyBounds()))
             foreach (BuildingPart part in ignore.parts) if (part.bounds.Intersects(PlayerSafetyBounds())) return false;
-        if (!initialized && IsPlayerReady)
+        if (!initialized && buildingWings.Count > 0)
         {
             Bounds checkpoint = new(startupSafePosition + startupSafeUp, Vector3.one * 4f);
             foreach (BuildingPart part in ignore.parts) if (part.bounds.Intersects(checkpoint)) return false;
@@ -823,21 +838,26 @@ public partial class DynamicInfinityCastle
         Vector3 up = module.transform.up;
         Vector3 exit = module.transform.TransformPoint(selected.position + (rooftop ? module.roofPoint : Vector3.zero));
         if (!BuildingPortFree(source, exit)) { networkRejects[1]++; yield break; }
-        int attempts = preferred != null ? 1 : buildingWings.Count - 2;
+        int attempts = preferred != null ? 1 : buildingWings.Count - ArchitectureLayerReserveCount;
         for (int offset = 0; offset < attempts; offset++)
         {
-            BuildingWing wing = preferred ?? buildingWings[(available.serial + offset) % (buildingWings.Count - 2)];
+            BuildingWing wing = preferred ?? buildingWings[(available.serial + offset) % (buildingWings.Count - ArchitectureLayerReserveCount)];
             if (wing.active) continue;
             SetBuildingPhysics(wing, true);
-            for (int span = 0; span < 3; span++) for (int portIndex = 0; portIndex < wing.entries.Count; portIndex++)
+            int portStart = initialized ? ArchitectureRandom.Next(wing.entries.Count) : 0;
+            int placementChecks = 0;
+            int spanStart = initialized ? ArchitectureRandom.Next(3) : 0;
+            for (int spanAttempt = 0; spanAttempt < 3; spanAttempt++) for (int portAttempt = 0; portAttempt < wing.entries.Count; portAttempt++)
             {
+                if (initialized && ++placementChecks > 12) yield break;
                 yield return false;
                 if (source.piece.IsMoving || wing.active || !BuildingPortFree(source, exit)) yield break;
+                int span = (spanStart + spanAttempt) % 3, portIndex = (portStart + portAttempt) % wing.entries.Count;
                 BuildingEntry entrance = wing.entries[portIndex];
                 BuildingPart targetPart = entrance.part;
                 CastleArchitectureModule target = targetPart.module;
                 CastleArchitectureModule.Port targetPort = entrance.port;
-                float gap = 3f + span * 4f + Hash(new Vector3Int(source.serial, wing.serial, portIndex), 516) * 3f;
+                float gap = 3f + span * 4f + Hash(new Vector3Int(source.serial, wing.serial, portIndex + wing.revision * 71), 516) * 3f;
                 // Use the scaled assembly's doorway, not the unscaled source FBX coordinates.
                 Transform root = wing.piece.transform;
                 Vector3 rootEntry = entrance.rootPoint;
@@ -852,6 +872,12 @@ public partial class DynamicInfinityCastle
                 wing.bounds = CastleGeometry.TransformBounds(wing.localBounds, placement);
                 foreach (BuildingPart candidate in wing.parts) candidate.bounds = CastleGeometry.TransformBounds(candidate.rootBounds, placement);
                 Bounds box = wing.bounds; box.Expand(.02f);
+                if (initialized)
+                {
+                    Bounds appearance = box;
+                    appearance.Encapsulate(exit); appearance.Encapsulate(entry);
+                    if (!CanRecycleCastleBounds(appearance)) continue;
+                }
                 if (!BuildingSpaceFree(box, wing, IsPlayerReady, source.group)) { networkRejects[3]++; continue; }
                 wing.piece.Place(floor + orientation * wing.localBounds.center, orientation);
                 wing.piece.gameObject.SetActive(true);
@@ -901,6 +927,8 @@ public partial class DynamicInfinityCastle
 
     private void UpdateBuildingArchitecture(float dt)
     {
+        buildingMotionClock += dt;
+        UpdateDistrictPhysics(dt);
         StreamBuildingVolume(dt);
         if (buildingLanding != null && controller != null && controller.Grounded) buildingLanding = null;
         bool changed = false;
@@ -917,7 +945,7 @@ public partial class DynamicInfinityCastle
                     groupRider |= IsBuildingSupport(member); carriedGroup |= member.carried;
                     approaching |= member.piece.ReservedBounds.Intersects(PlayerSafetyBounds());
                 }
-            bool unsafeApproach = !groupRider && approaching;
+            bool unsafeApproach = (!groupRider && approaching) || PlayerOccupiesBuildingBridge(wing.group);
             if (carriedGroup && !groupRider) unsafeApproach = true;
             if (unsafeApproach) StopBuildingGroup(wing.group);
         }
@@ -973,9 +1001,30 @@ public partial class DynamicInfinityCastle
         RefreshReservations();
     }
 
+    private bool PlayerOccupiesBuildingBridge(int group)
+    {
+        Bounds playerBounds = PlayerSafetyBounds();
+        foreach (BuildingJoin join in buildingJoins)
+        {
+            if (join.stair == null || (join.a.group != group && join.b.group != group)) continue;
+            Bounds approach = join.stair.bounds; approach.Expand(1.5f);
+            if (approach.Intersects(playerBounds)) return true;
+        }
+        return false;
+    }
+
+    private void ShuffleMotionCandidates()
+    {
+        for (int i = motionCandidates.Count - 1; i > 0; i--)
+        {
+            int other = ArchitectureRandom.Next(i + 1);
+            (motionCandidates[i], motionCandidates[other]) = (motionCandidates[other], motionCandidates[i]);
+        }
+    }
+
     private bool TryShiftBuildingGroup(BuildingWing candidate, Vector3 preferredDirection, bool wave)
     {
-        if (CastleWorkPending) return false;
+        if (CastleWorkPending || candidate.streamingLayer || PlayerOccupiesBuildingBridge(candidate.group)) return false;
         movingWingGroup.Clear();
         bool riding = false;
         foreach (BuildingWing wing in buildingWings)
@@ -983,22 +1032,23 @@ public partial class DynamicInfinityCastle
             if (!wing.active || wing.group != candidate.group) continue;
             if (IsUltraJumpTarget(wing)) return false;
             if (wing.piece.IsMoving || wing == buildingLanding) return false;
+            if (buildingMotionClock < wing.motionRestUntil && buildingMotionSerial - wing.lastMotion < 3) return false;
             movingWingGroup.Add(wing); riding |= IsBuildingSupport(wing);
         }
         if (movingWingGroup.Count == 0 || (riding && !rideMovingBuildings)) return false;
         Vector3 pivot = candidate.piece.WorldBounds.center;
         Vector3 direction = preferredDirection.sqrMagnitude > .01f ? preferredDirection.normalized : Vector3.right;
-        int sequence = ++buildingMotionSerial;
+        bool connected = buildingJoins.Exists(join => join.a.group == candidate.group || join.b.group == candidate.group);
+        float travel = Mathf.Clamp(nearbyShiftTravel, 2f, 12f);
         for (int attempt = 0; attempt < 15; attempt++)
         {
-            Vector3 axis = attempt == 0 ? direction : directions[(sequence + attempt) % 6];
-            float distance = attempt < 7 ? Mathf.Clamp(nearbyShiftTravel, 2f, 12f) : attempt < 13 ? 3f : 1.2f;
+            Vector3 axis = attempt == 0 ? direction : directions[ArchitectureRandom.Next(directions.Length)];
+            float distance = Mathf.Lerp(1.2f, travel, (float)ArchitectureRandom.NextDouble()) * (attempt < 10 ? 1f : .4f);
             Vector3 offset = axis * distance;
             Quaternion turn = Quaternion.identity;
-            bool connected = buildingJoins.Exists(join => join.a == candidate || join.b == candidate);
             if (!connected && !riding && wave && attempt < 7)
-                turn = Quaternion.AngleAxis(sequence % 2 == 0 ? 90f : -90f,
-                    sequence % 3 == 0 ? candidate.piece.transform.right : candidate.Up);
+                turn = Quaternion.AngleAxis(ArchitectureRandom.Next(-1, 2) * 90f,
+                    ArchitectureRandom.Next(3) == 0 ? candidate.piece.transform.right : candidate.Up);
             wingSweeps.Clear(); bool free = true;
             for (int i = 0; i < movingWingGroup.Count && free; i++)
             {
@@ -1044,12 +1094,15 @@ public partial class DynamicInfinityCastle
                     foreach (InfinityCastleBuilder other in decor.Values) if (other.ReservedBounds.Intersects(bridgeSweep)) free = false;
                 }
             if (!free) continue;
+            buildingMotionSerial++;
+            float seconds = Mathf.Max(3f, rebuildMoveSeconds) * Mathf.Lerp(.8f, 1.6f, (float)ArchitectureRandom.NextDouble());
             for (int i = 0; i < movingWingGroup.Count; i++)
             {
                 BuildingWing wing = movingWingGroup[i]; wing.carried = IsBuildingSupport(wing);
                 wing.piece.BeginRearrange(pivot, offset, turn * wing.piece.transform.rotation,
-                    Mathf.Max(3f, rebuildMoveSeconds), wingSweeps[i]);
-                wing.revision++;
+                    seconds, wingSweeps[i]);
+                wing.revision++; wing.lastMotion = buildingMotionSerial;
+                wing.motionRestUntil = buildingMotionClock + seconds + Mathf.Lerp(18f, 40f, (float)ArchitectureRandom.NextDouble());
             }
             if (wave)
             {
@@ -1064,39 +1117,37 @@ public partial class DynamicInfinityCastle
 
     private bool DirectBuildingShift(Vector3 direction)
     {
+        motionCandidates.Clear(); waveGroups.Clear();
         foreach (BuildingWing wing in buildingWings)
-            if (wing.active && IsBuildingSupport(wing) && TryShiftBuildingGroup(wing, direction, false)) return true;
-        BuildingWing nearest = null; float distance = float.PositiveInfinity;
-        foreach (BuildingWing wing in buildingWings)
-        {
-            if (!wing.active || wing.piece.IsMoving) continue;
-            float next = (wing.piece.WorldBounds.ClosestPoint(player.position) - player.position).sqrMagnitude;
-            if (next < distance) { nearest = wing; distance = next; }
-        }
-        if (nearest != null && TryShiftBuildingGroup(nearest, direction, true)) return true;
-        foreach (BuildingWing wing in buildingWings)
-            if (wing.active && !wing.piece.IsMoving && TryShiftBuildingGroup(wing, direction, true)) return true;
+            if (wing.active && !wing.piece.IsMoving && waveGroups.Add(wing.group)) motionCandidates.Add(wing);
+        ShuffleMotionCandidates();
+        foreach (BuildingWing wing in motionCandidates)
+            if (TryShiftBuildingGroup(wing, direction, true)) return true;
         return false;
     }
 
     private void BeginBuildingWave(Vector3 direction)
     {
         buildingWave.Clear(); waveGroups.Clear(); buildingWaveDirection = direction;
+        motionCandidates.Clear();
         foreach (BuildingWing wing in buildingWings)
-            if (wing.active && waveGroups.Add(wing.group)) buildingWave.Enqueue(wing);
+            if (wing.active && waveGroups.Add(wing.group)) motionCandidates.Add(wing);
+        ShuffleMotionCandidates();
+        foreach (BuildingWing wing in motionCandidates) buildingWave.Enqueue(wing);
         buildingWaveActive = buildingWave.Count > 0;
         LastRebuildSelectedCount += BuildingWingCount;
     }
 
     private void ProcessBuildingWave()
     {
-        if (!buildingWaveActive) return;
+        if (!buildingWaveActive || CastleWorkPending || playerVelocity.sqrMagnitude > 100f) return;
         int steps = Mathf.Max(1, layoutStepsPerFrame);
         double started = Time.realtimeSinceStartupAsDouble;
         while (buildingWave.Count > 0 && steps-- > 0)
         {
             BuildingWing wing = buildingWave.Dequeue();
-            if (wing.active && !TryShiftBuildingGroup(wing, buildingWaveDirection, true)) LastRebuildBlockedCount += GroupSize(wing);
+            Vector3 direction = ArchitectureRandom.Next(2) == 0 ? buildingWaveDirection : directions[ArchitectureRandom.Next(directions.Length)];
+            if (wing.active && !TryShiftBuildingGroup(wing, direction, true)) LastRebuildBlockedCount += GroupSize(wing);
             if (mobileBudget && (Time.realtimeSinceStartupAsDouble - started) * 1000d > layoutMillisecondsPerFrame) break;
         }
         if (buildingWave.Count == 0 && BuildingMovingCount == 0) buildingWaveActive = false;
@@ -1105,27 +1156,74 @@ public partial class DynamicInfinityCastle
     private bool PrepareBuildingFallLanding()
     {
         if (!keepFloorUnderPlayer) return false;
-        if (controller != null && controller.IsUltraJumping) return false;
+        if (buildingMotionClock < nextLayerCheck) return false;
+        nextLayerCheck = buildingMotionClock + .15f;
+        int below = 0; float deepest = 0f;
+        foreach (BuildingWing wing in buildingWings)
+        {
+            if (!wing.active || !wing.streamingLayer) continue;
+            Vector3 roof = wing.parts[0].module.transform.TransformPoint(wing.parts[0].module.roofPoint);
+            float depth = Vector3.Dot(player.position - roof, PlayerUp);
+            float lateral = Vector3.ProjectOnPlane(roof - player.position, PlayerUp).magnitude;
+            if (!IsBuildingSupport(wing) && (depth < -24f || depth > 600f || lateral > 120f || Vector3.Dot(wing.Up, PlayerUp) < .9f))
+            { wing.streamingLayer = false; continue; }
+            if (depth > 30f && depth < 500f && lateral < 100f) { below++; deepest = Mathf.Max(deepest, depth); }
+        }
+        PreparedCastleLayerCount = below;
+        if (below >= 3) return false;
+        return TryPrepareCastleLayer(Mathf.Clamp(deepest + 80f, CastleVisibleRadius + 96f, 384f), false);
+    }
+
+    private float nextLayerCheck;
+    public int PreparedCastleLayerCount { get; private set; }
+    public int PreparedCastleLayerGenerations { get; private set; }
+
+    private bool TryPrepareCastleLayer(float depth, bool initial)
+    {
+        BuildingWing next = AvailableBuildingWing() ?? AvailableBuildingWing(true);
+        if (next == null)
+        {
+            float farthest = 58f * 58f;
+            foreach (BuildingWing wing in buildingWings)
+            {
+                if (!wing.active || wing.serial == 0 || wing.streamingLayer || IsBuildingSupport(wing) || IsUltraJumpTarget(wing)) continue;
+                float distance = wing.bounds.SqrDistance(player.position);
+                if (wing.piece.IsMoving && distance < (CastleVisibleRadius + 8f) * (CastleVisibleRadius + 8f)) continue;
+                if (distance <= farthest || !CanRecycleBuildingWing(wing)) continue;
+                int degree = 0;
+                foreach (BuildingJoin join in buildingJoins) if (join.a == wing || join.b == wing) degree++;
+                if (degree > 1 && distance < (CastleVisibleRadius + 8f) * (CastleVisibleRadius + 8f)) continue;
+                // Connected structures are only detached once their entire join is hidden.
+                next = wing; farthest = distance;
+            }
+            if (next != null) { StopBuildingGroup(next.group); RetireBuildingWing(next); }
+        }
+        if (next == null) return false;
+        next.revision++;
+        Vector3Int key = new(next.serial, next.revision, PreparedCastleLayerGenerations);
+        next.content.localScale = Vector3.Scale(next.baseScale, new Vector3(Mathf.Lerp(.9f, 1.45f, Hash(key, 910)),
+            Mathf.Lerp(.9f, 1.25f, Hash(key, 911)), Mathf.Lerp(.9f, 1.5f, Hash(key, 912))));
+        next.localBounds = CastleGeometry.RendererBoundsInRoot(next.piece.transform);
+        next.piece.RefreshGeometryBounds(); CacheBuildingTemplate(next);
         Vector3 up = PlayerUp;
-        float depth = Mathf.Clamp(catchLayersBelow, 3, 5) * 20f;
-        if (HasBuildingFloorBelow(depth)) return false;
-        if (controller != null && controller.Grounded) return false;
-        BuildingWing wing = AvailableBuildingWing(true);
-        if (wing == null) return false;
-        float fallingSpeed = controller != null ? Mathf.Max(0f, -controller.VerticalSpeed) : 0f;
-        float seconds = Mathf.Clamp((Mathf.Sqrt(fallingSpeed * fallingSpeed + 44f * depth) - fallingSpeed) / 22f, .25f, 1.6f);
-        Vector3 target = player.position - up * (depth - 3f) + Vector3.ProjectOnPlane(playerVelocity, up) * seconds;
-        Quaternion orientation = CastleGeometry.Orientation(up);
-        Vector3 roof = wing.piece.transform.InverseTransformPoint(
-            wing.parts[0].module.transform.TransformPoint(wing.parts[0].module.roofPoint));
-        Vector3 floor = target - orientation * roof;
-        wing.piece.Place(floor + orientation * wing.localBounds.center, orientation);
-        CacheBuildingBounds(wing);
-        if (!BuildingSpaceFree(wing.piece.WorldBounds, wing, false)) return false;
-        if (buildingLanding != null && !IsBuildingSupport(buildingLanding)) buildingLanding = null;
-        PlaceBuildingWing(wing, floor, orientation);
-        buildingLanding = wing; landingGeneration++;
-        RefreshReservations(); Physics.SyncTransforms(); return true;
+        float speed = Mathf.Max(0f, -Vector3.Dot(playerVelocity, up));
+        float seconds = (Mathf.Sqrt(speed * speed + 44f * depth) - speed) / 22f;
+        Vector3 drift = Vector3.ClampMagnitude(Vector3.ProjectOnPlane(playerVelocity, up) * seconds, 110f);
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            Quaternion orientation = CastleGeometry.Orientation(up) * Quaternion.Euler(0f, (Hash(key, 913 + attempt) * 4f % 4f) * 90f, 0f);
+            Vector3 roof = next.piece.transform.InverseTransformPoint(next.parts[0].module.transform.TransformPoint(next.parts[0].module.roofPoint));
+            Vector3 target = player.position - up * (depth + attempt * 10f) + drift;
+            Vector3 floor = target - orientation * roof;
+            next.piece.Place(floor + orientation * next.localBounds.center, orientation);
+            CacheBuildingBounds(next);
+            if (!initial && !CanRecycleCastleBounds(next.piece.WorldBounds)) continue;
+            if (!BuildingSpaceFree(next.piece.WorldBounds, next, false)) continue;
+            PlaceBuildingWing(next, floor, orientation); next.streamingLayer = true;
+            PreparedCastleLayerGenerations++; PreparedCastleLayerCount++;
+            landingGeneration++; RefreshReservations(); Physics.SyncTransforms(); return true;
+        }
+        return false;
     }
 
     private bool HasBuildingFloorBelow(float depth)

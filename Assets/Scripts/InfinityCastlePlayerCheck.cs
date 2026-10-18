@@ -44,6 +44,8 @@ public sealed class InfinityCastlePlayerCheck : MonoBehaviour
         DynamicInfinityCastle castle = FindFirstObjectByType<DynamicInfinityCastle>();
         Check(castle != null, "Saved Playground includes the runtime generator");
         while (!castle.IsPlayerReady) yield return null;
+        Check(castle.IsInitialized && castle.DenseCastleRoomCount >= 500 && castle.PreparedCastleLayerCount >= 2,
+            "Controls unlock after the surrounding volume and multiple full lower layers exist");
         var player = castle.player.GetComponent<ThirdPersonController>();
         var input = castle.player.GetComponent<StarterAssetsInputs>();
         for (int i = 0; i < 20; i++) yield return null;
@@ -81,15 +83,45 @@ public sealed class InfinityCastlePlayerCheck : MonoBehaviour
         for (int i = 0; i < 5; i++) yield return null;
         Check(Vector3.Distance(start, player.transform.position) > 60f, "Horizontal travel does not trigger the old spawn-distance reset");
         player.transform.SetPositionAndRotation(start, Quaternion.identity); player.GetComponent<InfinityGravityBody>().RestoreDefaultGravity(); player.ResetFallVelocity();
-        while (castle.BuildingWingCount < 4) yield return null;
-        int warmWings = castle.GetComponentsInChildren<InfinityCastleBuilder>(true).Count(piece => piece.name.StartsWith("Playable Building Wing"));
-        Check(warmWings < castle.architectureWingPoolSize && !castle.IsInitialized,
-            "Real connected buildings appear before the complete pool is prewarmed; created=" + warmWings);
         while (!castle.IsInitialized) yield return null;
         Check(castle.BuildingWingCount >= 70 && castle.DenseCastleRoomCount >= 500, "Compiled build completes castle generation: wings=" + castle.BuildingWingCount + "; distributed rooms=" + castle.DenseCastleRoomCount);
         Check(castle.ValidateNoBuildingOverlaps(out string clearance), "Compiled model clearance " + clearance);
         Check(castle.ValidateSurroundingCastle(out string coverage), "Compiled six-direction coverage " + coverage);
         Check(castle.UsesTrainedDirector, "Trained ML director is included in the compiled player");
+        castle.periodicRebuilding = false; castle.simultaneousShifts = 0;
+        input.MoveInput(Vector2.zero); input.SprintInput(false);
+        player.transform.SetPositionAndRotation(start + Vector3.right * 112f + Vector3.up * 5f, Quaternion.identity);
+        player.GetComponent<InfinityGravityBody>().RestoreDefaultGravity(); player.ResetFallVelocity();
+        Vector3 departure = player.transform.position;
+        bool landed = false;
+        for (int frame = 0; frame < 420; frame++)
+        {
+            yield return null;
+            if (frame > 30 && player.Grounded && Vector3.Distance(departure, player.transform.position) > 20f)
+            { landed = true; break; }
+        }
+        Check(landed && Vector3.Distance(start, player.transform.position) > 30f,
+            "Actual deep departure lands on real castle collision without returning to spawn; position=" + player.transform.position);
+        int transforms = castle.GetComponentsInChildren<Transform>(true).Length;
+        player.enabled = false;
+        var blocks = (System.Collections.IDictionary)typeof(DynamicInfinityCastle).GetField("denseBlocks",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(castle);
+        foreach (Vector3 direction in new[] { Vector3.down, Vector3.up, Vector3.right })
+        {
+            for (int frame = 0; frame < 240; frame++)
+            {
+                player.transform.position += direction * 1.5f;
+                yield return null;
+                if (frame < 120 || frame % 30 != 0) continue;
+                Vector3Int cell = Vector3Int.RoundToInt(player.transform.position / 64f);
+                bool ready = true;
+                for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++)
+                    if (x * x + y * y + z * z <= 1 && !blocks.Contains(cell + new Vector3Int(x, y, z))) ready = false;
+                Check(ready, "Frame-budgeted inner residency at 45 m/s toward " + direction);
+            }
+        }
+        Check(castle.GetComponentsInChildren<Transform>(true).Length == transforms && castle.DenseCastlePhysicsCount <= 96,
+            "Compiled streaming retains the fixed GameObject and physical-body pools");
         File.AppendAllText(report, "ALL COMPILED PLAYER CHECKS PASSED\n"); Application.Quit(0);
     }
 }

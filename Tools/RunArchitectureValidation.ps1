@@ -1,4 +1,4 @@
-param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Player', 'AndroidBuild')][string]$Mode = 'Test')
+param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild')][string]$Mode = 'Test')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $root 'Temp/ArchitectureValidation'
@@ -12,13 +12,13 @@ foreach ($folder in @('Assets', 'Packages', 'ProjectSettings', 'Library/PackageC
 }
 $log = Join-Path $root "Temp/building-architecture-$($Mode.ToLower()).log"
 $method = "InfinityCastleArchitectureValidation.$Mode"
-if ($Mode -in @('Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery')) { $method = "InfinityCastleTraversalValidation.$Mode" }
+if ($Mode -in @('Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming')) { $method = "InfinityCastleTraversalValidation.$Mode" }
 if ($Mode -in @('Player', 'AndroidBuild')) { $method = "InfinityCastleBuildValidation.$Mode" }
 $arguments = @('-batchmode', '-projectPath', ('"' + $project + '"'), '-executeMethod', $method, '-logFile', ('"' + $log + '"'))
 if ($Mode -eq 'Player') { $arguments += @('-buildTarget', 'Win64') }
 if ($Mode -eq 'AndroidBuild') { $arguments += @('-buildTarget', 'Android') }
-if ($Mode -notin @('Preview', 'Diagnostics', 'Quality')) { $arguments += @('-nographics', '-quit') }
-if ($Mode -in @('Diagnostics', 'Quality')) { $arguments += '-quit' }
+if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming')) { $arguments += @('-nographics', '-quit') }
+if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming')) { $arguments += '-quit' }
 $process = Start-Process 'D:/for unity/6000.0.51f1/Editor/Unity.exe' -WindowStyle Hidden -PassThru -ArgumentList $arguments
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "Architecture $Mode failed. See $log" }

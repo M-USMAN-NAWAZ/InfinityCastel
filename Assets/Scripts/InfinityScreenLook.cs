@@ -28,7 +28,8 @@ public sealed class InfinityScreenLook : MonoBehaviour, IPointerDownHandler, IDr
         if (data.pointerId != pointer) return;
         Vector2 delta = data.position - lastPosition;
         lastPosition = data.position;
-        if (!OverOtherUI(data)) pendingPixels += delta;
+        // A drag that started on the look area keeps ownership when it crosses a button.
+        pendingPixels += delta;
     }
     public void OnPointerUp(PointerEventData data) { if (data.pointerId == pointer) ResetInput(); }
     public void FlushLook(float dt, float screenHeight)

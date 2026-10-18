@@ -841,14 +841,15 @@ public static class InfinityCastleArchitectureValidation
         if (Camera.main == null || !Camera.main.enabled) throw new InvalidOperationException("Startup disabled the rendering camera.");
         if (!castle.IsPlayerReady)
         {
-            if (Time.time > 10f) throw new InvalidOperationException("The safe starting room did not release controls within ten seconds.");
+            if (Time.time > 220f) throw new InvalidOperationException("The surrounding castle did not finish preparing.");
             return false;
         }
         var actor = castle.player.GetComponent<ThirdPersonController>();
         var controls = castle.player.GetComponent<StarterAssetsInputs>();
         if (!actor.enabled) throw new InvalidOperationException("The starter building is ready but player control is disabled.");
         if (startupProbe >= 6) return true;
-        if (castle.IsInitialized) throw new InvalidOperationException("Input was not available before the full pool finished warming.");
+        if (!castle.IsInitialized || castle.PreparedCastleLayerCount < 2)
+            throw new InvalidOperationException("Controls unlocked without the surrounding volume and lower layers.");
         if (startupProbe == 0)
         {
             if (!actor.Grounded) return false;
@@ -869,31 +870,10 @@ public static class InfinityCastleArchitectureValidation
             if (Quaternion.Angle(startupProbeRotation, actor.CinemachineCameraTarget.transform.rotation) > .05f)
             {
                 controls.LookInput(Vector2.zero);
-                Vector3 safe = (Vector3)typeof(DynamicInfinityCastle).GetField("startupSafePosition", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(castle);
-                actor.transform.position = safe - Vector3.up * 22f; actor.ResetFallVelocity();
-                startupProbeTime = Time.time; startupProbe = 3;
+                controls.JumpInput(true); startupProbe = 6;
+                Debug.Log("PASS Movement/look and jump after the surrounding castle is prepared.");
             }
             else if (Time.time - startupProbeTime > 1f) throw new InvalidOperationException("Look input did not rotate the camera during warm-up.");
-        }
-        else if (startupProbe == 3 && Time.time - startupProbeTime > .15f)
-        {
-            if (!actor.Grounded) throw new InvalidOperationException("An unsupported startup fall was not returned to the last safe floor.");
-            actor.transform.position += Vector3.right * 64f; actor.ResetFallVelocity();
-            startupProbeTime = Time.time; startupProbe = 4;
-        }
-        else if (startupProbe == 4 && Time.time - startupProbeTime > .15f)
-        {
-            Vector3 safe = (Vector3)typeof(DynamicInfinityCastle).GetField("startupSafePosition", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(castle);
-            if (Vector3.Distance(actor.transform.position, safe) < 60f)
-                throw new InvalidOperationException("Horizontal travel was incorrectly returned to spawn during warm-up.");
-            actor.transform.SetPositionAndRotation(safe, Quaternion.identity); actor.ResetFallVelocity();
-            startupProbeTime = Time.time; startupProbe = 5;
-        }
-        else if (startupProbe == 5 && Time.time - startupProbeTime > .2f)
-        {
-            if (!actor.Grounded) return false;
-            controls.JumpInput(true); startupProbe = 6;
-            Debug.Log("PASS Startup camera, movement/look, early fall recovery and no horizontal spawn reset. Playable after " + castle.PlayerReadySeconds.ToString("F2") + "s.");
         }
         return startupProbe >= 6;
     }

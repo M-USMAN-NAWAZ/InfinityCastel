@@ -47,7 +47,7 @@ public static class InfinityCastleBuildValidation
     }
     public static void AndroidBuild()
     {
-        string output = Path.GetFullPath("../../Builds/InfinityCastle-Android-fix.apk");
+        string output = Path.GetFullPath("../../Builds/InfinityCastle-Android-streaming.apk");
         Directory.CreateDirectory(Path.GetDirectoryName(output));
         EditorUserBuildSettings.buildAppBundle = false;
         Build(BuildTarget.Android, output, BuildOptions.None);

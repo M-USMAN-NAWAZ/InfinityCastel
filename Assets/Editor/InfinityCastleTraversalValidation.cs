@@ -11,6 +11,106 @@ using UnityEngine;
 
 public static class InfinityCastleTraversalValidation
 {
+    public static void Streaming()
+    {
+        InfinityCastleArchitectureValidation.Install();
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        using var report = new StreamWriter(Path.GetFullPath("../castle-streaming-tests.txt")) { AutoFlush = true };
+        void Check(bool passed, string message)
+        { report.WriteLine((passed ? "PASS " : "FAIL ") + message); if (!passed) throw new InvalidOperationException(message); }
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+        object Field(object value, string name) => value.GetType().GetField(name, flags).GetValue(value);
+        try
+        {
+            var actor = new GameObject("Streaming player"); actor.AddComponent<CharacterController>(); actor.AddComponent<StarterAssetsInputs>();
+            actor.AddComponent<InfinityGravityBody>(); actor.AddComponent<ThirdPersonController>(); actor.transform.position = Vector3.up * 15f;
+            Camera camera = new GameObject("Streaming camera").AddComponent<Camera>(); camera.tag = "MainCamera";
+            camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = Color.black; camera.farClipPlane = 1024f;
+            var castle = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/prefabs/InfinityCastleRuntime.prefab")).GetComponent<DynamicInfinityCastle>();
+            castle.player = actor.transform; castle.useLearnedDirector = false; castle.castleLighting = false;
+            castle.periodicRebuilding = false; castle.simultaneousShifts = 0; castle.InitializeCastle();
+            Check(castle.IsPlayerReady && castle.IsInitialized && castle.PreparedCastleLayerCount >= 2, "Initial surroundings and multiple lower buildings exist before controls unlock");
+            var wings = (System.Collections.IList)Field(castle, "buildingWings");
+            foreach (object wing in wings)
+                if ((bool)Field(wing, "streamingLayer"))
+                    Check(((System.Collections.IList)Field(wing, "parts")).Count >= 5, "A prepared lower layer is a full room/corridor/stair assembly, not a single emergency room");
+            int transforms = castle.GetComponentsInChildren<Transform>(true).Length;
+            var blocks = (System.Collections.IDictionary)Field(castle, "denseBlocks");
+            var known = new System.Collections.Generic.HashSet<Vector3Int>();
+            foreach (Vector3Int key in blocks.Keys) known.Add(key);
+            int births = 0, visibleDirectionBirths = 0;
+            foreach (Vector3 direction in new[] { Vector3.down, Vector3.up, Vector3.right, Vector3.forward, Vector3.left, Vector3.back })
+            {
+                for (int frame = 0; frame < 160; frame++)
+                {
+                    actor.transform.position += direction * 1.5f;
+                    camera.transform.position = actor.transform.position + Vector3.up * 2f;
+                    camera.transform.rotation = Quaternion.LookRotation(direction, Mathf.Abs(direction.y) > .9f ? Vector3.forward : Vector3.up);
+                    castle.SimulateCastle(1f / 30f);
+                    foreach (System.Collections.DictionaryEntry pair in blocks)
+                    {
+                        var key = (Vector3Int)pair.Key;
+                        if (known.Contains(key)) continue;
+                        Bounds bounds = (Bounds)Field(pair.Value, "bounds");
+                        bool hidden = (bool)typeof(DynamicInfinityCastle).GetMethod("CanRecycleCastleBounds", flags).Invoke(castle, new object[] { bounds });
+                        Check(hidden, "New cluster is prepared outside visible/near geometry: " + key);
+                        if (bounds.SqrDistance(actor.transform.position) > 200f * 200f &&
+                            GeometryUtility.TestPlanesAABB(GeometryUtility.CalculateFrustumPlanes(camera), bounds)) visibleDirectionBirths++;
+                        births++;
+                    }
+                    known.Clear(); foreach (Vector3Int key in blocks.Keys) known.Add(key);
+                    if (frame % 30 != 0) continue;
+                    Vector3Int cell = Vector3Int.RoundToInt(actor.transform.position / 64f);
+                    for (int x = -2; x <= 2; x++) for (int y = -2; y <= 2; y++) for (int z = -2; z <= 2; z++)
+                        if (x * x + y * y + z * z <= 4 && !blocks.Contains(cell + new Vector3Int(x, y, z)))
+                            throw new InvalidOperationException("Missing inner residency while moving " + direction + " at " + actor.transform.position);
+                }
+                Check(castle.ValidateDistributedDistricts(out string coverage), "Full surrounding volume after 240 m travel " + direction + ": " + coverage);
+                camera.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(Vector3.forward + direction * .3f, Vector3.up).normalized + Vector3.down * .4f);
+                Capture(camera, "streaming-" + direction + ".png");
+            }
+            Check(births > 30 && visibleDirectionBirths > 10, "Continuous preparation works even in the viewed travel direction: " + births + " births; " + visibleDirectionBirths + " ahead beyond the render band");
+            Check(castle.PreparedCastleLayerGenerations >= 5, "Repeated deep travel uses varied full building layers: " + castle.PreparedCastleLayerGenerations);
+            Check(castle.GetComponentsInChildren<Transform>(true).Length == transforms && castle.DenseCastlePhysicsCount <= 96,
+                "Long travel reuses all GameObjects and retains the 96-body physics limit");
+            object crossingProbe = blocks.Values.Cast<object>().SelectMany(block => ((Array)Field(block, "crossings")).Cast<object>())
+                .First(crossing => (bool)Field(Field(crossing, "a"), "active") && Field(crossing, "link") == null);
+            Vector3 savedPosition = actor.transform.position;
+            Vector3 pathStart = (Vector3)Field(crossingProbe, "start"), pathEnd = (Vector3)Field(crossingProbe, "end");
+            actor.transform.position = (pathStart + pathEnd) * .5f;
+            camera.transform.position = actor.transform.position + Vector3.up * 12f - Vector3.forward * 10f;
+            camera.transform.LookAt(actor.transform.position);
+            Color32[] beforePhysics = Capture(camera, "stream-path-before-physics.png");
+            typeof(DynamicInfinityCastle).GetMethod("UpdateDistrictPhysics", flags).Invoke(castle, new object[] { 1f });
+            Color32[] afterPhysics = Capture(camera, "stream-path-after-physics.png");
+            Check(Field(crossingProbe, "link") != null && beforePhysics.SequenceEqual(afterPhysics),
+                "Promoting a visible path's collider does not change any rendered pixels");
+            actor.transform.position = savedPosition;
+            foreach (object block in blocks.Values)
+                foreach (object crossing in (Array)Field(block, "crossings"))
+                {
+                    object link = Field(crossing, "link");
+                    if (link != null) Check(((Renderer[])Field(link, "renderers")).All(renderer => !renderer.enabled),
+                        "Physics promotion leaves the existing instanced path appearance unchanged");
+                }
+            RenderSettings.fog = false;
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube); cube.layer = 27; cube.transform.localScale = Vector3.one * 8f;
+            cube.GetComponent<Renderer>().sharedMaterial = new Material(castle.architectureShader);
+            camera.cullingMask = 1 << 27;
+            int Pixels(float distance)
+            {
+                cube.transform.position = actor.transform.position + Vector3.forward * distance;
+                camera.transform.SetPositionAndRotation(cube.transform.position - Vector3.forward * 14f, Quaternion.identity);
+                return Capture(camera, "stream-fade-" + distance + ".png").Count(pixel => pixel.r > 20 || pixel.g > 20 || pixel.b > 20);
+            }
+            int near = Pixels(150f), transition = Pixels(176f), hiddenPixels = Pixels(210f);
+            Check(near > transition && transition > 1000 && hiddenPixels == 0,
+                "Opaque distance fade hides prepared geometry before reuse: pixels=" + near + "/" + transition + "/" + hiddenPixels);
+            report.WriteLine("ALL PREDICTIVE STREAMING CHECKS PASSED");
+        }
+        catch (Exception error) { report.WriteLine(error); Debug.LogException(error); EditorApplication.Exit(1); }
+    }
+
     public static void Recovery()
     {
         InfinityCastleArchitectureValidation.Install();
@@ -250,6 +350,9 @@ public static class InfinityCastleTraversalValidation
                 }
             }
             Frame(30);
+            Check(Mathf.Approximately(player.EffectiveUltraJumpSpeed, 19.5f) &&
+                Mathf.Approximately(player.EffectiveUltraJumpHeight, 13.5f) && Mathf.Approximately(player.EffectiveUltraJumpRange, 63.75f),
+                "Super-jump speed, height and targeting range are 75 percent of the original settings");
             Vector3 start = actor.transform.position;
             var rooms = castle.GetComponentsInChildren<CastleArchitectureModule>().Where(module => module.name.StartsWith("Gravity Leap Room")).ToArray();
             Check(rooms.Length == 5, "Five real native landing rooms above and on four sides of the starting roof");
@@ -326,27 +429,113 @@ public static class InfinityCastleTraversalValidation
             castle.previewTouchControls = true;
             var mobile = castle.gameObject.AddComponent<InfinityCastleMobileRuntime>(); mobile.Configure(castle); mobile.Configure(castle);
             UIVirtualButton button = mobile.Controls.GetComponentsInChildren<UIVirtualButton>().Single(item => item.name == "Ultra Jump");
+            RectTransform normalJump = (RectTransform)mobile.Controls.GetComponentsInChildren<UIVirtualButton>().Single(item => item.name == "UI_Virtual_Button_Jump").transform;
+            RectTransform superJump = (RectTransform)button.transform;
+            Vector3[] normalCorners = new Vector3[4], superCorners = new Vector3[4];
+            Canvas.ForceUpdateCanvases(); normalJump.GetWorldCorners(normalCorners); superJump.GetWorldCorners(superCorners);
+            Check(Mathf.Abs(normalJump.position.x - superJump.position.x) < 1f && superCorners[0].y > normalCorners[1].y,
+                "Super Jump is directly above normal Jump, with a gap and no overlapping hit targets");
+            Check(button.GetComponent<UnityEngine.UI.Image>().sprite != null && button.GetComponentInChildren<UnityEngine.UI.Text>().text.Contains("SUPER"),
+                "Super Jump has the existing rounded control artwork and a readable label");
             var events = new GameObject("Touch test events").AddComponent<EventSystem>();
+            var lookPointer = new PointerEventData(events) { pointerId = 18, position = new Vector2(700f, 300f),
+                pointerCurrentRaycast = new RaycastResult { gameObject = mobile.ScreenLook.gameObject } };
+            mobile.ScreenLook.OnPointerDown(lookPointer);
+            lookPointer.position += Vector2.right * 60f;
+            lookPointer.pointerCurrentRaycast = new RaycastResult { gameObject = button.gameObject };
+            mobile.ScreenLook.OnDrag(lookPointer); mobile.ScreenLook.FlushLook(1f / 30f, 1080f);
+            Check(input.look.x > 0f, "An existing camera swipe continues across a jump button without sticking");
+            mobile.ScreenLook.OnPointerUp(lookPointer);
             var pointer = new PointerEventData(events) { pointerId = 17 };
             button.OnPointerDown(pointer); Check(input.ultraJump, "Android Ultra Jump button sends the real input");
             Frame(1); Check(player.IsUltraJumping, "Android Ultra Jump button launches the player");
             button.OnPointerUp(pointer); mobile.enabled = false;
             Check(!input.ultraJump && input.move == Vector2.zero && input.look == Vector2.zero, "Touch release/disable clears ultra jump and movement input");
             player.ResetFallVelocity();
+            CheckMotion(castle, actor.transform, camera, Check);
             report.WriteLine("ALL ULTRA JUMP AND GRAVITY TRANSFER CHECKS PASSED");
         }
         catch (Exception error) { report.WriteLine(error); Debug.LogException(error); EditorApplication.Exit(1); }
     }
 
-    private static Color32[] Capture(Camera camera, string name)
+    private static void CheckMotion(DynamicInfinityCastle castle, Transform actor, Camera camera, Action<bool, string> check)
     {
-        RenderTexture texture = RenderTexture.GetTemporary(960, 540, 24);
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        object Field(object target, string name) => target.GetType().GetField(name, fields).GetValue(target);
+        object Call(string name, params object[] args) => typeof(DynamicInfinityCastle).GetMethod(name, fields).Invoke(castle, args);
+        var joins = (System.Collections.IList)Field(castle, "buildingJoins");
+        object join = joins.Cast<object>().First(item => Field(item, "stair") != null);
+        var from = (CastleArchitectureModule)Field(join, "from"); var to = (CastleArchitectureModule)Field(join, "to");
+        Vector3 a = from.transform.TransformPoint((Vector3)Field(join, "exit"));
+        Vector3 b = to.transform.TransformPoint((Vector3)Field(join, "entry"));
+        Vector3 saved = actor.position;
+        actor.position = (a + b) * .5f + from.transform.up * .05f;
+        foreach (string end in new[] { "a", "b" })
+        {
+            object wing = Field(join, end);
+            check((bool)Call("PlayerOccupiesBuildingBridge", (int)Field(wing, "group")) &&
+                !(bool)Call("TryShiftBuildingGroup", wing, Vector3.right, true),
+                "Standing on a path prevents its " + end + " endpoint from stretching or tilting it");
+        }
+        actor.position = saved;
+        camera.transform.SetPositionAndRotation(saved + Vector3.up * 3f, Quaternion.identity);
+        check(!(bool)Call("CanRecycleCastleBounds", new Bounds(camera.transform.position + Vector3.forward * 65f, Vector3.one * 6f)),
+            "Visible pooled rooms cannot be removed or appear in front of the player");
+        check(!(bool)Call("CanRecycleCastleBounds", new Bounds(actor.position - Vector3.forward * 10f, Vector3.one)),
+            "Nearby pooled geometry remains protected even behind the camera");
+        check(!(bool)Call("CanRecycleCastleBounds", new Bounds(camera.transform.position - Vector3.forward * 100f, Vector3.one * 6f)),
+            "The visible-distance sphere remains resident behind the camera during a fast turn");
+        check((bool)Call("CanRecycleCastleBounds", new Bounds(camera.transform.position + Vector3.forward * 280f, Vector3.one * 6f)),
+            "Fully hidden geometry can be prepared/reused even directly in the viewing direction");
+        typeof(DynamicInfinityCastle).GetField("architectureStreamClock", fields).SetValue(castle, 10000f);
+        var wings = (System.Collections.IList)Field(castle, "buildingWings");
+        var selected = new System.Collections.Generic.HashSet<int>();
+        var travels = new System.Collections.Generic.HashSet<int>();
+        var durations = new System.Collections.Generic.HashSet<int>();
+        for (int i = 0; i < 18; i++)
+        {
+            if (castle.DirectShift(Vector3.right))
+                foreach (object wing in wings)
+                {
+                    var piece = (InfinityCastleBuilder)Field(wing, "piece");
+                    if (!piece.IsMoving) continue;
+                    selected.Add((int)Field(wing, "group"));
+                    travels.Add(Mathf.RoundToInt(((Vector3)Field(piece, "motionEnd") - (Vector3)Field(piece, "motionStart")).magnitude * 100f));
+                    durations.Add(Mathf.RoundToInt((float)Field(piece, "duration") * 100f));
+                }
+            Call("UpdateBuildingArchitecture", 30f);
+        }
+        check(selected.Count >= 3 && travels.Count >= 3 && durations.Count >= 3,
+            "Random shifts vary groups, travel and duration: " + selected.Count + "/" + travels.Count + "/" + durations.Count);
+        check(castle.ValidateNoBuildingOverlaps(out string error), "Randomized shifts retain collision clearance: " + error);
+    }
+
+    public static void Controls()
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        var actor = new GameObject("Touch layout player"); actor.AddComponent<StarterAssetsInputs>();
+        var castle = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/prefabs/InfinityCastleRuntime.prefab")).GetComponent<DynamicInfinityCastle>();
+        castle.player = actor.transform; castle.previewTouchControls = true;
+        var mobile = castle.gameObject.AddComponent<InfinityCastleMobileRuntime>(); mobile.Configure(castle);
+        Camera camera = new GameObject("Touch UI preview camera").AddComponent<Camera>();
+        camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = new Color(.09f, .10f, .12f);
+        Canvas canvas = mobile.Controls.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = camera; canvas.planeDistance = 1f;
+        Capture(camera, "super-jump-controls-16x9.png");
+        Capture(camera, "super-jump-controls-20x9.png", 1200, 540);
+        Debug.Log("Rendered Super Jump above normal Jump at 16:9 and 20:9.");
+    }
+
+    private static Color32[] Capture(Camera camera, string name, int width = 960, int height = 540)
+    {
+        RenderTexture texture = RenderTexture.GetTemporary(width, height, 24);
         RenderTexture previous = RenderTexture.active;
         camera.targetTexture = texture;
+        Canvas.ForceUpdateCanvases();
         camera.Render();
         RenderTexture.active = texture;
-        Texture2D pixels = new(960, 540, TextureFormat.RGB24, false);
-        pixels.ReadPixels(new Rect(0, 0, 960, 540), 0, 0); pixels.Apply();
+        Texture2D pixels = new(width, height, TextureFormat.RGB24, false);
+        pixels.ReadPixels(new Rect(0, 0, width, height), 0, 0); pixels.Apply();
         File.WriteAllBytes(Path.GetFullPath("../" + name), pixels.EncodeToPNG());
         Color32[] result = pixels.GetPixels32();
         camera.targetTexture = null; RenderTexture.active = previous;

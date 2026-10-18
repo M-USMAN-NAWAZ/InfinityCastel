@@ -37,7 +37,7 @@ public partial class DynamicInfinityCastle
             Vector3 delta = point + up * .93f - centre;
             float distance = delta.magnitude;
             // A sideways departure can be level with the destination roof; its arc supplies the headroom.
-            if (distance < 7f || distance > controller.UltraJumpRange || Vector3.Dot(centre - point, up) < -.25f) return;
+            if (distance < 7f || distance > controller.EffectiveUltraJumpRange || Vector3.Dot(centre - point, up) < -.25f) return;
             float facing = Vector3.Dot(delta / distance, aim);
             if (facing < .97f) return;
             jumpLandings.Add(new JumpLanding { point = point, up = up, wing = wing, room = room,
@@ -71,7 +71,7 @@ public partial class DynamicInfinityCastle
                 { landing = jumpHits[i]; nearest = jumpHits[i].distance; }
             if (landing.collider == null) continue;
             Vector3 destination = landing.point + candidate.up * .95f;
-            float duration = Mathf.Ceil(Mathf.Clamp(Vector3.Distance(centre, destination) / controller.UltraJumpSpeed, 1.6f, 3.2f) * 2.5f) * .4f;
+            float duration = Mathf.Ceil(Mathf.Clamp(Vector3.Distance(centre, destination) / controller.EffectiveUltraJumpSpeed, 1.6f, 3.2f) * 2.5f) * .4f;
             Vector3 firstAcceleration = -PlayerUp * gravity.Strength;
             Vector3 lastAcceleration = -candidate.up * gravity.Strength;
             Vector3 velocity = default; bool clear = false;

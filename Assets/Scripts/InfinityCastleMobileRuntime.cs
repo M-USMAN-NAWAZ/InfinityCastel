@@ -83,18 +83,36 @@ public sealed class InfinityCastleMobileRuntime : MonoBehaviour
     }
     private void CreateUltraJumpButton()
     {
-        var root = new GameObject("Ultra Jump", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(UIVirtualButton));
+        RectTransform jump = null;
+        foreach (UIVirtualButton existing in buttons)
+            if (existing.name == "UI_Virtual_Button_Jump") jump = (RectTransform)existing.transform;
+        var root = new GameObject("Ultra Jump", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(UIVirtualButton));
+        root.layer = Controls.gameObject.layer;
         RectTransform rect = root.GetComponent<RectTransform>(); rect.SetParent(safeRoot, false);
         rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f);
-        rect.anchoredPosition = new Vector2(-350f, 300f); rect.sizeDelta = new Vector2(120f, 80f);
-        root.GetComponent<Image>().color = new Color(.5f, .23f, .055f, .85f);
+        rect.sizeDelta = new Vector2(128f, 128f);
+        rect.anchoredPosition = new Vector2(-93f, 355f);
+        if (jump != null)
+        {
+            rect.SetParent(jump.parent, false);
+            rect.anchorMin = jump.anchorMin; rect.anchorMax = jump.anchorMax;
+            rect.anchoredPosition = jump.anchoredPosition + Vector2.up * (jump.rect.height * (1f - jump.pivot.y) + rect.rect.height * .5f + 24f);
+        }
+        Image image = root.GetComponent<Image>();
+        if (jump != null && jump.TryGetComponent(out Image jumpImage)) image.sprite = jumpImage.sprite;
+        image.color = new Color(.86f, .57f, .18f, .9f);
+        Button feedback = root.GetComponent<Button>(); feedback.targetGraphic = image;
+        ColorBlock colours = feedback.colors;
+        colours.pressedColor = new Color(.65f, .55f, .35f); colours.highlightedColor = Color.white;
+        feedback.colors = colours;
+        feedback.navigation = new Navigation { mode = Navigation.Mode.None };
         UIVirtualButton button = root.GetComponent<UIVirtualButton>();
         button.buttonStateOutputEvent = new UIVirtualButton.BoolEvent();
         button.buttonStateOutputEvent.AddListener(inputs.UltraJumpInput);
         var label = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
         RectTransform labelRect = label.GetComponent<RectTransform>(); labelRect.SetParent(rect, false);
         labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one; labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
-        Text text = label.GetComponent<Text>(); text.text = "ULTRA\nJUMP"; text.fontSize = 20;
+        Text text = label.GetComponent<Text>(); text.text = "\u2191\u2191\nSUPER\nJUMP"; text.fontSize = 22;
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); text.alignment = TextAnchor.MiddleCenter; text.raycastTarget = false;
         buttons = safeRoot.GetComponentsInChildren<UIVirtualButton>(true);
     }

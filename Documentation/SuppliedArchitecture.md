@@ -49,8 +49,8 @@ cannot immediately activate the reverse corner, while walking back still can.
 ## Pooling and Frame Budget
 
 The default Android-budget configuration prewarms 96 building-wing slots (including
-two emergency slots), 288 shared path connections, 96 outer-room physics bodies,
-and 256 reusable cluster-data slots. No castle GameObjects or meshes are created
+four full-building layer reserves), 288 shared path connections, 96 outer-room physics bodies,
+and 768 lightweight reusable cluster-data slots. No castle GameObjects or meshes are created
 or destroyed by traversal, shifts or spatial streaming after warm-up. Far room
 volumes use shared instanced LOD meshes; the complete room distance mesh has
 900 triangles. Nearby collision is leased from the physics pool.
@@ -70,19 +70,31 @@ Render-only distance meshes still have Read/Write disabled.
 
 Startup and streaming run through the same incremental work queue, using
 `layoutMillisecondsPerFrame` (default 2 ms) as a soft CPU budget. Atomic Unity
-operations can exceed that budget. The camera is never disabled. A solid starting
-building is placed first and controls are released before the rest of the pool
-warms. A small non-blocking label reports background progress. Unsupported deep
-falls during warm-up return to the last real floor until normal fall recovery is
-ready. Completing warm-up does not teleport the player back to spawn. Placement checks use cached
+operations can exceed that budget. The camera is never disabled. A loading overlay
+holds controls until the initial surrounding volume and three full lower building
+layers have been prepared. Completing warm-up does not teleport the player back
+to spawn. Placement checks use cached
 module bounds and free doorway anchors; rejected candidates do not move PhysX
 assemblies. Room, path and physics pools are reused as the spatial window moves.
 
-Each newly warmed wing now connects immediately instead of waiting for all 96
-wings and 288 bridges before expansion starts. Bridges warm alongside their
-wings, retaining the same final pool size. During warm-up, rescue applies only to
-a genuine unsupported descending fall below the last safe floor, never just
-horizontal distance or a jump with actual castle collision underneath.
+Bridges warm alongside their wings, retaining the same final GameObject pool size.
+Residency covers a five-cell-radius sphere in every direction, plus a three-cell
+lead volume up to 140 m along velocity/gravity prediction. Blocks are prepared in
+lead-first order. Real architecture uses an opaque, single-pass distance fade from
+160 to 192 m; unseen geometry is prepared beyond 200 m even if the camera looks
+directly that way. This removes the old frustum veto that starved forward/downward
+generation. Hidden old layers can be recycled above, below or sideways, with new
+dimensions/orientations. There are no enclosing panels or fake castle surfaces.
+
+The old one-room emergency catch was replaced by multi-room/corridor/stair wing
+assemblies. Three are primed below the start; ongoing preparation keeps multiple
+layers ahead of a descending player, not a room spawned just before impact.
+Collider promotion runs independently every 0.08 s, including a velocity lead;
+four room bodies and two crossings can be promoted per update. Slow doorway
+matching is skipped at high travel speed so it cannot stall vertical residency.
+Rooms and paths outside the visible band are CPU-culled as well as shader-hidden.
+Leasing a district crossing's collider does not replace its instanced visual mesh;
+walking closer cannot reveal a newly activated, differently detailed path object.
 
 Inference-only play skips the Python-trainer connection attempt. Explicit training
 agents retain their normal trainer workflow. The existing model has not been
@@ -107,6 +119,25 @@ landings, continuous flight, smooth camera rotation, real keyboard/sprint/touch
 input paths, gamepad bindings, overlap clearance and unchanged pool size.
 It also crosses an actual native roof/side-room seam in both directions and holds
 the player still at the corner to detect idle gravity oscillation.
+Super jump now applies `UltraJumpPower = 0.75` to range, forward speed and height
+(63.75 m, 19.5 m/s and 13.5 m with the original base settings). Targeted gravity
+transfers still solve their complete collision-checked trajectory; launch velocity
+is not scaled after solving. The rounded SUPER JUMP control sits above normal
+jump, and a camera swipe retains ownership when crossing a button.
+
+The ML director still chooses the high-level plan. Movement shuffles eligible
+building groups instead of always choosing the rider first; travel, duration,
+wave order and fallback axes vary, with a rest period before repeating a group.
+Both endpoints of an occupied path are protected from stretching/slanting, and
+approaching a path stops endpoint motion. These safety constraints take precedence
+over randomness. Runtime pooled building/connection and district reuse is deferred
+inside the entire 200 m protected sphere, including behind the camera during fast turns;
+the fully hidden outer preparation band can be filled while looking directly at it.
+Deferred districts retry after a camera turn even without changing cells.
+Traversal validation includes occupied-path, motion-diversity, visibility and
+touch-layout checks. Initial surrounding layers are prepared before gameplay starts.
+`-Mode Controls` renders the actual touch canvas at 16:9 and 20:9 into
+`Temp/super-jump-controls-16x9.png` and `Temp/super-jump-controls-20x9.png`.
 
 `-Mode Corners` reproduces overlapping floor, side-room and entry-only gravity
 fields. It verifies stationary stability, walking back and pooled-zone release.
@@ -115,9 +146,10 @@ side, checks their materials, and compares silhouettes/colour against the origin
 
 `-Mode Player` builds and runs an isolated Windows development player to enforce
 actual build-time mesh access restrictions. It checks native collider cooking
-under rotated/nonuniform parents, early visible expansion, normal warm-up jumps,
-no distance-based respawn, full generation and ML inclusion. This is not a phone
-performance test. `-Mode AndroidBuild` produces `Builds/InfinityCastle-Android-fix.apk`;
+under rotated/nonuniform parents, fully prepared startup, normal jumps,
+no distance-based respawn, a real deep fall, sustained frame-budgeted 45 m/s travel,
+fixed pool size, full generation and ML inclusion. This is not a phone
+performance test. `-Mode AndroidBuild` produces `Builds/InfinityCastle-Android-streaming.apk`;
 physical-device testing is still required.
 Shaders are stripped only from the opt-in headless test player, not the Android game.
 `-Mode Recovery` separately checks supported deep drops, horizontal travel,
@@ -128,3 +160,10 @@ Blender without editing the original supplied models. Android frame rate and the
 performance still require physical-device profiling.
 
 Restart Play mode after changing generator code or pool settings.
+
+`-Mode Streaming` travels 240 m in each of six directions with the camera facing
+travel. It checks inner residency, ahead-of-view preparation, six-sided coverage,
+multi-room lower layers and unchanged GameObject/body pools. It also renders the
+distance transition to verify that geometry beyond the hidden band contributes
+zero pixels. Reports and views are saved under `Temp/castle-streaming-tests.txt`
+and `Temp/streaming-*.png`.

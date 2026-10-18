@@ -16,6 +16,15 @@ public partial class DynamicInfinityCastle
     public string MaxCastleWorkUnitName { get; private set; }
     public int CastleWorkFrames { get; private set; }
 
+    public const float CastleVisibleRadius = 192f;
+    public const float CastleFadeStart = 160f;
+    // The shader makes the outer preparation band invisible in every camera direction.
+    private bool CanRecycleCastleBounds(Bounds bounds)
+    {
+        // Keep the whole visible sphere resident, including behind the camera during a fast turn.
+        return bounds.SqrDistance(player.position) > (CastleVisibleRadius + 8f) * (CastleVisibleRadius + 8f);
+    }
+
     private void ScheduleCastleWork(IEnumerator steps)
     {
         if (CastleWorkPending) return;
@@ -92,8 +101,9 @@ public partial class DynamicInfinityCastle
     {
         DrawUltraJumpHint();
         if (initialized || !CastleWorkPending || !BuildingTraversalEnabled) return;
-        GUI.Label(new Rect(14f, Screen.height - 58f, 520f, 54f),
-            $"{(IsPlayerReady ? "Castle expanding in background" : "Preparing a solid starting room")}…\nBuilding pool: {buildingWings.Count}/{architectureWingPoolSize}; connected buildings: {BuildingWingCount}");
+        GUI.Box(new Rect(0f, 0f, Screen.width, Screen.height), "");
+        GUI.Label(new Rect(Screen.width * .5f - 250f, Screen.height * .5f - 30f, 500f, 80f),
+            $"Preparing the surrounding castle…\nBuildings: {buildingWings.Count}/{architectureWingPoolSize}; surrounding rooms: {DenseCastleRoomCount}\nControls unlock when the initial layers are ready.");
     }
 
     private struct CastleFrontier
@@ -118,7 +128,7 @@ public partial class DynamicInfinityCastle
         // The bounded pool is the currently loaded part of an expanding castle, not its edge.
         for (int pass = 0; pass < 3; pass++)
         {
-            for (int i = 1; i < buildingWings.Count - 2; i++)
+            for (int i = 1; i < buildingWings.Count - ArchitectureLayerReserveCount; i++)
             {
                 BuildingWing wing = buildingWings[i];
                 if (wing.active) continue;
@@ -165,7 +175,7 @@ public partial class DynamicInfinityCastle
         castleFrontier.Clear();
         foreach (BuildingWing wing in buildingWings)
         {
-            if (!wing.active || wing.piece.IsMoving || (initialized && !wing.physicsNear) || wing.serial >= architectureWingPoolSize - 2) continue;
+            if (!wing.active || wing.piece.IsMoving || (initialized && !wing.physicsNear) || wing.serial >= architectureWingPoolSize - ArchitectureLayerReserveCount) continue;
             Matrix4x4 world = wing.piece.transform.localToWorldMatrix;
             Quaternion rotation = wing.piece.transform.rotation;
             foreach (BuildingEntry entry in wing.entries)
@@ -324,15 +334,17 @@ public partial class DynamicInfinityCastle
         architectureStreamClock -= dt;
         if (architectureStreamClock > 0f && (player.position - districtPhysicsPosition).sqrMagnitude < 8f * 8f) return;
         bool falling = Vector3.Dot(playerVelocity, PlayerUp) < -8f;
-        architectureStreamClock = falling ? .2f : .6f;
+        architectureStreamClock = falling || playerVelocity.sqrMagnitude > 100f ? .1f : .3f;
         ScheduleCastleWork(StreamCastleSteps());
     }
 
     private IEnumerator StreamCastleSteps()
     {
         bool falling = Vector3.Dot(playerVelocity, PlayerUp) < -8f;
-        yield return UpdateDenseDistricts();
         UpdateNetworkPhysics();
+        yield return UpdateDenseDistricts();
+        // Expensive door matching must not delay the next high-speed volume update.
+        if (playerVelocity.sqrMagnitude > 100f) yield break;
         BuildingWing next = AvailableBuildingWing();
         if (next == null)
         {
@@ -342,11 +354,11 @@ public partial class DynamicInfinityCastle
             float farthest = 58f * 58f;
             foreach (BuildingWing wing in buildingWings)
             {
-                if (!wing.active || wing.serial >= buildingWings.Count - 2 || wing.piece.IsMoving || IsBuildingSupport(wing) || IsUltraJumpTarget(wing)) continue;
+                if (!wing.active || wing.streamingLayer || wing.serial >= buildingWings.Count - ArchitectureLayerReserveCount || wing.piece.IsMoving || IsBuildingSupport(wing) || IsUltraJumpTarget(wing)) continue;
                 int degree = 0;
                 foreach (BuildingJoin join in buildingJoins) if (join.a == wing || join.b == wing) degree++;
                 float distance = (wing.piece.WorldBounds.ClosestPoint(player.position) - player.position).sqrMagnitude;
-                if (degree != 1 || distance < farthest || (mainCamera != null && GeometryUtility.TestPlanesAABB(cameraPlanes, wing.piece.WorldBounds))) continue;
+                if (degree != 1 || distance < farthest || !CanRecycleBuildingWing(wing)) continue;
                 next = wing; farthest = distance;
             }
             if (next != null)
@@ -371,9 +383,13 @@ public partial class DynamicInfinityCastle
 
     private void UpdateNetworkPhysics()
     {
-        if (!mobileBudget) return;
         foreach (BuildingWing wing in buildingWings)
-            if (wing.active) SetBuildingPhysics(wing, wing.bounds.SqrDistance(player.position) < 75f * 75f || wing.piece.IsMoving || IsUltraJumpTarget(wing));
+            if (wing.active)
+            {
+                float distance = wing.bounds.SqrDistance(player.position);
+                wing.piece.SetRendering(distance < (CastleVisibleRadius + 8f) * (CastleVisibleRadius + 8f));
+                if (mobileBudget) SetBuildingPhysics(wing, distance < 90f * 90f || wing.piece.IsMoving || IsUltraJumpTarget(wing));
+            }
     }
 
     private void SetBuildingPhysics(BuildingWing wing, bool near)
@@ -388,7 +404,7 @@ public partial class DynamicInfinityCastle
     {
         connectedBuildings.Clear(); networkSearch.Clear();
         if (buildingWings.Count == 0) { error = "No castle buildings."; return false; }
-        BuildingWing start = buildingWings.Find(wing => wing.active && wing.serial < buildingWings.Count - 2);
+        BuildingWing start = buildingWings.Find(wing => wing.active && wing.serial < buildingWings.Count - ArchitectureLayerReserveCount);
         if (start == null) { error = "No active castle network."; return false; }
         connectedBuildings.Add(start); networkSearch.Enqueue(start);
         while (networkSearch.Count > 0)
@@ -404,9 +420,13 @@ public partial class DynamicInfinityCastle
         Vector3 anchor = player.position;
         foreach (BuildingWing wing in buildingWings)
         {
-            if (!wing.active || wing.serial >= buildingWings.Count - 2) continue;
+            if (!wing.active || wing.streamingLayer || wing.serial >= buildingWings.Count - ArchitectureLayerReserveCount) continue;
             expected++;
-            if (!connectedBuildings.Contains(wing)) { error = "Unconnected building " + wing.serial; return false; }
+            if (!connectedBuildings.Contains(wing))
+            {
+                if (PreparedCastleLayerGenerations > 2) return ValidateDistributedDistricts(out error);
+                error = "Unconnected building " + wing.serial; return false;
+            }
             foreach (BuildingPart part in wing.parts)
             {
                 Vector3 delta = part.module.WorldFloor - anchor;
@@ -417,6 +437,6 @@ public partial class DynamicInfinityCastle
         { error = "Too little actual architecture toward " + directions[i] + ": " + sides[i]; return false; }
         error = $"Connected network: {expected} buildings / {BuildingRoomCount} modules / {buildingJoins.Count} crossings; " +
             "six-side module coverage=" + string.Join(",", sides);
-        return expected >= architectureWingPoolSize * .85f;
+        return expected >= architectureWingPoolSize * .85f || ValidateDistributedDistricts(out error);
     }
 }

@@ -45,6 +45,10 @@ namespace StarterAssets
         [Min(1f)] public float UltraJumpHeight = 18f;
         [Min(1f)] public float UltraJumpSpeed = 26f;
         [Min(10f)] public float UltraJumpRange = 85f;
+        [Range(.1f, 1f)] public float UltraJumpPower = .75f;
+        public float EffectiveUltraJumpSpeed => UltraJumpSpeed * UltraJumpPower;
+        public float EffectiveUltraJumpHeight => UltraJumpHeight * UltraJumpPower;
+        public float EffectiveUltraJumpRange => UltraJumpRange * UltraJumpPower;
         [System.NonSerialized] public DynamicInfinityCastle Castle;
         public bool IsUltraJumping { get; private set; }
         private Vector3 ultraVelocity, ultraStartUp, ultraLandingUp;
@@ -177,7 +181,7 @@ namespace StarterAssets
                 if (!IsUltraJumping && (Grounded || groundedTime > 0f) && jumpCooldown <= 0f)
                 {
                     bool launched = Castle != null && Castle.TryUltraJump(cameraTransform != null ? cameraTransform.forward : MovementForward);
-                    if (!launched) LaunchUltraJump(MovementForward * UltraJumpSpeed + targetUp * Mathf.Sqrt(2f * acceleration * UltraJumpHeight),
+                    if (!launched) LaunchUltraJump(MovementForward * EffectiveUltraJumpSpeed + targetUp * Mathf.Sqrt(2f * acceleration * EffectiveUltraJumpHeight),
                         targetUp, 4f, false);
                 }
             }

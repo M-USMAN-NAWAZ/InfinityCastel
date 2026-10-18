@@ -30,6 +30,8 @@ Shader "Infinity Castle/Architecture"
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
             TEXTURE2D(_WoodMap); SAMPLER(sampler_WoodMap);
             TEXTURE2D(_PaperMap); SAMPLER(sampler_PaperMap);
+            float4 _CastleStreamCenter;
+            float4 _CastleStreamDistances;
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
@@ -53,6 +55,15 @@ Shader "Infinity Castle/Architecture"
             }
             half4 Frag(Varyings input) : SV_Target
             {
+                if (_CastleStreamCenter.w > .5)
+                {
+                    float distanceToPlayer = distance(input.positionWS, _CastleStreamCenter.xyz);
+                    float coverage = saturate((_CastleStreamDistances.y - distanceToPlayer) /
+                        max(1.0, _CastleStreamDistances.y - _CastleStreamDistances.x));
+                    // Opaque screen-door fade: no transparent sorting or extra mobile draw pass.
+                    float noise = frac(52.9829189 * frac(dot(input.positionCS.xy, float2(.06711056, .00583715))));
+                    clip(coverage - max(noise, .0001));
+                }
                 half3 normal = normalize(input.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half3 lighting = half3(0.72,0.62,0.54) + max(SampleSH(normal), 0) * 0.35;

@@ -9,7 +9,8 @@ public partial class DynamicInfinityCastle
     public GameObject architectureDistrictModel;
     public Material architectureDistrictMaterial;
     private const float DistrictSpan = 64f;
-    private const int DistrictBlockCapacity = 256, DistrictBodyCapacity = 96;
+    // Extra residency is lightweight layout data, not extra GameObjects or collider bodies.
+    private const int DistrictBlockCapacity = 768, DistrictBodyCapacity = 96;
     private sealed class DistrictRoom
     {
         public Vector3 position, scale;
@@ -50,16 +51,19 @@ public partial class DynamicInfinityCastle
         public Matrix4x4 local;
         public readonly List<Matrix4x4> instances = new(2048);
     }
-    private readonly Dictionary<Vector3Int, DistrictBlock> denseBlocks = new(256);
+    private readonly Dictionary<Vector3Int, DistrictBlock> denseBlocks = new(DistrictBlockCapacity);
     private readonly Queue<DistrictBlock> freeDistrictBlocks = new();
-    private readonly HashSet<Vector3Int> wantedDenseBlocks = new();
-    private readonly List<Vector3Int> retiredDenseBlocks = new();
+    private readonly HashSet<Vector3Int> wantedDenseBlocks = new(DistrictBlockCapacity);
+    private readonly List<Vector3Int> pendingDenseBlocks = new(DistrictBlockCapacity);
+    private readonly List<Vector3Int> retiredDenseBlocks = new(DistrictBlockCapacity);
     private readonly Queue<DistrictBody> freeDistrictBodies = new();
     private readonly List<DistrictRoom> nearDistrictRooms = new(256);
     private readonly List<DistrictDraw>[] districtDraws = { new(), new(), new() };
     private readonly List<DistrictDraw> districtPathDraws = new();
     private Transform denseRoot;
     private Vector3Int denseCell;
+    private Vector3Int densePredictionCell;
+    private float districtPhysicsClock;
     private Bounds districtModuleBounds;
     private Bounds districtPathBounds;
     private Vector3 districtPhysicsPosition;
@@ -132,7 +136,8 @@ public partial class DynamicInfinityCastle
         foreach (Bounds corridor in gravityLeapClearance) if (bounds.Intersects(corridor)) return false;
         foreach (BuildingWing wing in buildingWings)
         {
-            if (!wing.active || !bounds.Intersects(wing.bounds)) continue;
+            if (!wing.active || !bounds.Intersects(wing.piece.ReservedBounds)) continue;
+            if (wing.piece.IsMoving) return false;
             foreach (BuildingPart part in wing.parts) if (bounds.Intersects(part.bounds)) return false;
         }
         foreach (BuildingJoin join in buildingJoins) if (join.stair != null && bounds.Intersects(join.stair.bounds)) return false;
@@ -195,58 +200,90 @@ public partial class DynamicInfinityCastle
     {
         if (denseRoot == null) yield break;
         districtPhysicsPosition = player.position;
+        Vector3 forecast = player.position + Vector3.ClampMagnitude(playerVelocity * 2.5f +
+            (controller != null && !controller.Grounded ? -PlayerUp * 45f : Vector3.zero), 140f);
         Vector3Int cell = Vector3Int.RoundToInt(player.position / DistrictSpan);
-        if (cell != denseCell)
+        Vector3Int prediction = Vector3Int.RoundToInt(forecast / DistrictSpan);
+        if (cell != denseCell || prediction != densePredictionCell)
         {
-            denseCell = cell; wantedDenseBlocks.Clear();
-            // Fill interior cells too. There are no six boundary planes or tiled facades.
-            for (int x = -3; x <= 3; x++) for (int y = -3; y <= 3; y++) for (int z = -3; z <= 3; z++)
-                if (x * x + y * y + z * z <= 12) wantedDenseBlocks.Add(cell + new Vector3Int(x, y, z));
-            retiredDenseBlocks.Clear();
-            foreach (var pair in denseBlocks)
-                if (!wantedDenseBlocks.Contains(pair.Key) && pair.Value.bounds.SqrDistance(player.position) > 70f * 70f) retiredDenseBlocks.Add(pair.Key);
-            foreach (Vector3Int key in retiredDenseBlocks)
+            denseCell = cell; densePredictionCell = prediction; wantedDenseBlocks.Clear();
+            // A complete halo in all six directions plus a lead volume along actual movement.
+            for (int x = -5; x <= 5; x++) for (int y = -5; y <= 5; y++) for (int z = -5; z <= 5; z++)
             {
-                DistrictBlock block = denseBlocks[key];
-                foreach (DistrictRoom room in block.rooms) ReleaseDistrictBody(room);
-                foreach (DistrictCrossing crossing in block.crossings) ReleaseDistrictCrossing(crossing);
-                denseBlocks.Remove(key); freeDistrictBlocks.Enqueue(block);
-                yield return null;
+                int radius = x * x + y * y + z * z;
+                if (radius <= 25) wantedDenseBlocks.Add(cell + new Vector3Int(x, y, z));
+                if (radius <= 9) wantedDenseBlocks.Add(prediction + new Vector3Int(x, y, z));
             }
-            foreach (Vector3Int key in wantedDenseBlocks)
-            {
-                if (denseBlocks.ContainsKey(key) || freeDistrictBlocks.Count == 0) continue;
-                DistrictBlock block = freeDistrictBlocks.Dequeue();
-                PopulateDistrictBlock(block, key); denseBlocks.Add(key, block);
-                yield return null;
-            }
-            DenseCastleRoomCount = 0;
-            foreach (DistrictBlock block in denseBlocks.Values) foreach (DistrictRoom room in block.rooms)
-                if (room.active) DenseCastleRoomCount++;
-            DenseCastleCrossingCount = DenseCastleRoomCount / 2;
         }
+        // Retry deferred offscreen work even if the player stays in the same cell and turns around.
+        retiredDenseBlocks.Clear();
+        foreach (var pair in denseBlocks)
+            if (!wantedDenseBlocks.Contains(pair.Key) && pair.Value.bounds.SqrDistance(player.position) > 70f * 70f &&
+                CanRecycleCastleBounds(pair.Value.bounds)) retiredDenseBlocks.Add(pair.Key);
+        foreach (Vector3Int key in retiredDenseBlocks)
+        {
+            DistrictBlock block = denseBlocks[key];
+            // Earlier releases yield between blocks; the camera may have turned since selection.
+            if (!CanRecycleCastleBounds(block.bounds)) continue;
+            foreach (DistrictRoom room in block.rooms) ReleaseDistrictBody(room);
+            foreach (DistrictCrossing crossing in block.crossings) ReleaseDistrictCrossing(crossing);
+            denseBlocks.Remove(key); freeDistrictBlocks.Enqueue(block);
+            yield return null;
+        }
+        pendingDenseBlocks.Clear();
+        foreach (Vector3Int key in wantedDenseBlocks) if (!denseBlocks.ContainsKey(key)) pendingDenseBlocks.Add(key);
+        pendingDenseBlocks.Sort((a, b) => ((Vector3)a * DistrictSpan - forecast).sqrMagnitude.CompareTo(((Vector3)b * DistrictSpan - forecast).sqrMagnitude));
+        foreach (Vector3Int key in pendingDenseBlocks)
+        {
+            if (denseBlocks.ContainsKey(key) || freeDistrictBlocks.Count == 0) continue;
+            DistrictBlock block = freeDistrictBlocks.Dequeue();
+            PopulateDistrictBlock(block, key);
+            if (initialized && !CanRecycleCastleBounds(block.bounds))
+            { freeDistrictBlocks.Enqueue(block); yield return null; continue; }
+            denseBlocks.Add(key, block);
+            yield return null;
+        }
+        DenseCastleRoomCount = 0;
+        foreach (DistrictBlock block in denseBlocks.Values) foreach (DistrictRoom room in block.rooms)
+            if (room.active) DenseCastleRoomCount++;
+        DenseCastleCrossingCount = DenseCastleRoomCount / 2;
+        UpdateDistrictPhysics(1f);
+    }
+
+    private void UpdateDistrictPhysics(float dt)
+    {
+        if (denseRoot == null) return;
+        districtPhysicsClock -= dt;
+        if (districtPhysicsClock > 0f) return;
+        districtPhysicsClock = .08f;
+        Vector3 ahead = player.position + Vector3.ClampMagnitude(playerVelocity * .8f, 60f);
         nearDistrictRooms.Clear();
         foreach (DistrictBlock block in denseBlocks.Values) foreach (DistrictRoom room in block.rooms)
         {
             if (!room.active) continue;
             float distance = room.bounds.SqrDistance(player.position);
-            if (distance < 42f * 42f) nearDistrictRooms.Add(room);
-            else if (distance > 52f * 52f && !IsUltraJumpTarget(room)) ReleaseDistrictBody(room);
+            bool approaching = room.bounds.SqrDistance(ahead) < 24f * 24f;
+            if (distance < 48f * 48f || approaching) nearDistrictRooms.Add(room);
+            else if (distance > 68f * 68f && !IsUltraJumpTarget(room)) ReleaseDistrictBody(room);
         }
         nearDistrictRooms.Sort((a, b) => a.bounds.SqrDistance(player.position).CompareTo(b.bounds.SqrDistance(player.position)));
+        int promoted = 0;
         foreach (DistrictRoom room in nearDistrictRooms)
         {
             if (room.body != null || freeDistrictBodies.Count == 0) continue;
             AcquireDistrictBody(room);
-            yield return null;
+            if (++promoted >= 4 && initialized) break;
         }
+        int paths = 0;
         foreach (DistrictBlock block in denseBlocks.Values) foreach (DistrictCrossing crossing in block.crossings)
         {
             if (crossing.a.body == null || crossing.b.body == null) { ReleaseDistrictCrossing(crossing); continue; }
-            if (crossing.link != null || linkPool.Count < 12) continue;
+            if (crossing.link != null || linkPool.Count < 12 || initialized && paths >= 2) continue;
             crossing.link = linkPool.Dequeue(); crossing.link.root.transform.SetParent(denseRoot, true);
             ConfigureNetworkBridge(crossing.link, crossing.start, crossing.end, crossing.a.rotation * Vector3.up);
-            yield return null;
+            // Leasing collision must not switch the already-visible instanced path's representation.
+            foreach (Renderer renderer in crossing.link.renderers) renderer.enabled = false;
+            paths++;
         }
         Physics.SyncTransforms();
     }
@@ -265,6 +302,7 @@ public partial class DynamicInfinityCastle
     private void ReleaseDistrictCrossing(DistrictCrossing crossing)
     {
         if (crossing.link == null) return;
+        foreach (Renderer renderer in crossing.link.renderers) renderer.enabled = true;
         crossing.link.root.SetActive(false); crossing.link.root.transform.SetParent(pathsParent, true);
         linkPool.Enqueue(crossing.link); crossing.link = null;
     }
@@ -284,12 +322,13 @@ public partial class DynamicInfinityCastle
             {
                 if (!room.active || !GeometryUtility.TestPlanesAABB(districtCameraPlanes, room.bounds)) continue;
                 float distance = room.bounds.SqrDistance(player.position);
+                if (distance > CastleVisibleRadius * CastleVisibleRadius) continue;
                 int level = distance < 18f * 18f ? 0 : distance < 45f * 45f ? 1 : 2;
                 Matrix4x4 world = Matrix4x4.TRS(room.position, room.rotation, room.scale);
                 foreach (DistrictDraw draw in districtDraws[level]) draw.instances.Add(world * draw.local);
             }
             foreach (DistrictCrossing crossing in block.crossings)
-                if (crossing.a.active && crossing.link == null)
+                if (crossing.a.active && crossing.bounds.SqrDistance(player.position) <= CastleVisibleRadius * CastleVisibleRadius)
                     foreach (DistrictDraw draw in districtPathDraws) draw.instances.Add(crossing.matrix * draw.local);
         }
     }
@@ -309,6 +348,8 @@ public partial class DynamicInfinityCastle
     private void RenderDenseDistricts(ScriptableRenderContext context, Camera camera)
     {
         if (denseRoot == null || !isActiveAndEnabled || camera.cameraType == CameraType.Preview) return;
+        Shader.SetGlobalVector("_CastleStreamCenter", new Vector4(player.position.x, player.position.y, player.position.z, 1f));
+        Shader.SetGlobalVector("_CastleStreamDistances", new Vector4(CastleFadeStart, CastleVisibleRadius, 0f, 0f));
         BuildDistrictDraws(camera);
         foreach (var level in districtDraws) DrawDistrictInstances(level, camera);
         DrawDistrictInstances(districtPathDraws, camera);
@@ -331,7 +372,11 @@ public partial class DynamicInfinityCastle
         return true;
     }
 
-    private void ShutdownDenseDistricts() => RenderPipelineManager.beginCameraRendering -= RenderDenseDistricts;
+    private void ShutdownDenseDistricts()
+    {
+        RenderPipelineManager.beginCameraRendering -= RenderDenseDistricts;
+        Shader.SetGlobalVector("_CastleStreamCenter", Vector4.zero);
+    }
 
     public bool ValidateDistributedDistricts(out string result)
     {

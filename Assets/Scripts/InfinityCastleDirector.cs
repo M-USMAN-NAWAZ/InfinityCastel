@@ -21,7 +21,7 @@ public sealed class InfinityCastleDirector : MonoBehaviour
     public void Tick(float dt, DynamicInfinityCastle castle, int availableShifts, Vector3 playerVelocity)
     {
         // Count the quiet interval only after the previous group has completely settled.
-        if (castle.IsRebuilding || availableShifts < castle.simultaneousShifts) return;
+        if (castle.IsRebuilding || castle.CastleWorkPending || availableShifts < castle.simultaneousShifts) return;
         Vector3 up = castle.PlayerUp;
         Quaternion basis = CastleGeometry.Orientation(up);
         if (castle.periodicRebuilding && castle.randomNearbyCastle)
@@ -55,7 +55,8 @@ public sealed class InfinityCastleDirector : MonoBehaviour
         };
         int count = Mathf.Min(availableShifts, random.Next(1, 3));
         for (int i = 0; i < count; i++) if (castle.DirectShift(direction)) CommandsIssued++;
-        pauseTime = (Mathf.Max(7f, castle.shiftInterval) + (float)random.NextDouble() * 6f) * castle.LearnedIntervalMultiplier;
+        pauseTime = Mathf.Lerp(Mathf.Max(7f, castle.shiftInterval * .7f), Mathf.Max(16f, castle.shiftInterval * 2f),
+            (float)random.NextDouble()) * castle.LearnedIntervalMultiplier;
     }
     private float RebuildDelay(DynamicInfinityCastle castle)
     {
