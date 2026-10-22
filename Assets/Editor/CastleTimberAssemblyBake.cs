@@ -22,7 +22,7 @@ public static class CastleTimberAssemblyBake
             Add(source, name + suffix);
         }
         Add(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/InfinityCastle/CastleModules/RuntimeLod/CorrectedRoom_LOD3.fbx").GetComponentInChildren<MeshFilter>().sharedMesh, "CorrectedRoom_LOD3");
-        foreach (string name in new[] { "PackFlatStair", "PackStairFlight" })
+        foreach (string name in new[] { "PackFlatStair", "PackSwitchbackStair", "PackStairFlight" })
             Add(AssetDatabase.LoadAssetAtPath<Mesh>("Assets/InfinityCastle/CastleModules/RuntimeMobile/" + name + ".asset"), name);
 
         void Add(Mesh source, string name)
@@ -38,7 +38,7 @@ public static class CastleTimberAssemblyBake
                 unit = new Vector3(unit.x / source.bounds.size.x, unit.y / source.bounds.size.y, unit.z / source.bounds.size.z);
                 // The supplied flight is long and narrow: group along its treads rather
                 // than spending all ten bins across two unsegmented side rails.
-                bool alongFlight = name == "PackStairFlight";
+                bool alongFlight = name == "PackStairFlight" || name == "PackSwitchbackStair";
                 int x = Mathf.Clamp((int)((alongFlight ? unit.z : unit.x) * 10f), 0, 9),
                     z = (alongFlight ? unit.x : unit.z) < .5f ? 0 : 1, y = unit.y < .16f ? 0 : unit.y < .78f ? 1 : 2;
                 int id = x + z * 10 + y * 20; ids[i / 3] = id;

@@ -56,7 +56,7 @@ public partial class DynamicInfinityCastle
         }
         foreach (DistrictBlock block in denseBlocks.Values) foreach (DistrictRoom room in block.rooms)
             if (room.active)
-                Consider(room.position + room.rotation * Vector3.Scale(roomPrefab.GetComponent<CastleArchitectureModule>().roofPoint, room.scale),
+                Consider(room.position + room.rotation * Vector3.Scale(DistrictModule(room).roofPoint, room.scale),
                     room.rotation * Vector3.up, null, room);
         jumpLandings.Sort((a, b) => b.score.CompareTo(a.score));
         foreach (JumpLanding candidate in jumpLandings)

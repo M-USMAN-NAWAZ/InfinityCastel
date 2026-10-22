@@ -51,6 +51,7 @@ public static class InfinityCastleArchitectureValidation
             generator.pathPrefabs = new List<GameObject> { PrepareMobileModel("Path", generator.architectureShader),
                 PrepareMobileModel("Stares", generator.architectureShader),
                 CastlePackStairsBake.Prepare("stair_1", "PackFlatStair", generator.architectureShader),
+                CastlePackStairsBake.Prepare("stair_2", "PackSwitchbackStair", generator.architectureShader),
                 CastlePackStairsBake.Prepare("stair_3", "PackStairFlight", generator.architectureShader) };
             generator.mobileDecorationPrefabs.Clear();
             generator.architectureDistanceModels = new List<GameObject>();
@@ -186,6 +187,8 @@ public static class InfinityCastleArchitectureValidation
                 castle.castleLighting = false; castle.useLearnedDirector = false;
                 castle.periodicRebuilding = false; castle.simultaneousShifts = 0;
                 castle.InitializeCastle(); Frame(30);
+                Check(castle.pathPrefabs.Exists(prefab => prefab.name == "PackSwitchbackStair" && prefab.GetComponent<CastleStairRoute>() != null),
+                    "The runtime pool contains the intact authored stair_2 with both flights and its turn landing");
                 Check(castle.IsInitialized && castle.BuildingWingCount >= poolSize * .85f,
                     "Pool " + poolSize + " initializes fully without an index exception");
                 Check(player.Grounded, "Pool " + poolSize + " starts on a solid native roof: " + player.transform.position);
@@ -270,6 +273,7 @@ public static class InfinityCastleArchitectureValidation
                 Check(castle.ValidateNoBuildingOverlaps(out clearance), "No model intersections after shifting and streaming " + clearance);
                 Check(castle.ValidateDoorwayClosures(out string doorReport), doorReport);
                 Check(castle.ValidateDistrictDoorways(out string districtDoors), districtDoors);
+                Check(castle.ValidateDistrictVariety(out string districtVariety), districtVariety);
                 Check(castle.TryGetDistrictDoorPair(out Vector3 districtExit, out Vector3 districtEntry, out Vector3 districtUp, out Vector3 districtDirection),
                     "Outer districts contain complete adjoining rooms, not facade meshes");
                 InfinityGravityBody districtGravity = actor.GetComponent<InfinityGravityBody>();

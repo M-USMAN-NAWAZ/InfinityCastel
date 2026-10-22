@@ -111,7 +111,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     }
     private sealed class Link
     {
-        public GameObject root, flat, flight, ramp, flatCollision;
+        public GameObject root, flat, flight, ramp, flatCollision, switchbackCollision;
         public readonly BoxCollider[] rails = new BoxCollider[2];
         public CastleWalkableSurface landing;
         public Bounds bounds;
@@ -503,6 +503,11 @@ public partial class DynamicInfinityCastle : MonoBehaviour
     {
         foreach (GameObject prefab in pathPrefabs)
         {
+            if (prefab.TryGetComponent(out CastleStairRoute route))
+            {
+                districtSwitchbackPrefab = prefab; districtSwitchbackRoute = route;
+                continue;
+            }
             GameObject sample = new("Path measurement"); sample.transform.SetParent(pathsParent, false);
             GameObject art = Instantiate(prefab, sample.transform);
             DisableAuthoredLights(art);
@@ -616,6 +621,25 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         link.ramp.AddComponent<MeshCollider>().sharedMesh = stairRampMesh;
         link.flatCollision = new GameObject("Fitted Walkway Collision"); link.flatCollision.transform.SetParent(root.transform, false);
         link.flatCollision.AddComponent<BoxCollider>();
+        if (districtSwitchbackPrefab != null)
+        {
+            link.switchbackCollision = new GameObject("Authored stair_2 Collision");
+            link.switchbackCollision.transform.SetParent(root.transform, false);
+            link.switchbackCollision.AddComponent<MeshCollider>().sharedMesh = districtSwitchbackPrefab.GetComponent<MeshFilter>().sharedMesh;
+            Vector3[] route = districtSwitchbackRoute.points;
+            for (int segment = 0; segment < 3; segment++)
+            {
+                GameObject floor = new("Switchback walking surface " + segment);
+                floor.transform.SetParent(link.switchbackCollision.transform, false);
+                Vector3 delta = route[segment + 1] - route[segment];
+                floor.transform.localPosition = (route[segment] + route[segment + 1]) * .5f;
+                floor.transform.localRotation = Quaternion.LookRotation(delta, Vector3.up);
+                BoxCollider collision = floor.AddComponent<BoxCollider>();
+                collision.center = Vector3.down * .09f;
+                collision.size = new Vector3(districtSwitchbackRoute.laneWidth, .18f, delta.magnitude + .12f);
+            }
+            link.switchbackCollision.SetActive(false);
+        }
         for (int side = 0; side < link.rails.Length; side++)
         {
             GameObject rail = new(side == 0 ? "Fitted Left Rail Collision" : "Fitted Right Rail Collision");

@@ -55,6 +55,8 @@ public class InfinityCastleBuilder : MonoBehaviour
         localBounds = CastleGeometry.RendererBoundsInRoot(transform);
         ReservedBounds = WorldBounds;
     }
+    internal void SetPooledGeometryBounds(Bounds bounds)
+    { localBounds = bounds; ReservedBounds = WorldBounds; }
     public Bounds SweepTo(Vector3 offset)
     {
         Bounds swept = WorldBounds;

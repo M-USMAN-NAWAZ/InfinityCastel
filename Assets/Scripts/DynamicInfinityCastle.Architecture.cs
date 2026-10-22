@@ -146,6 +146,8 @@ public partial class DynamicInfinityCastle
         PrepareStartingBuilding();
         for (int i = buildingWings.Count; i < architectureWingPoolSize; i++)
         {
+            // Each pooled building gets an actual policy decision, not just one shared startup recipe.
+            PrimeLearnedPlan();
             BuildingWing wing = CreateBuildingWing(i); buildingWings.Add(wing);
             yield return null;
             for (int link = 0; link < 3; link++) { linkPool.Enqueue(CreateLink(i * 3 + link)); yield return null; }
@@ -451,7 +453,8 @@ public partial class DynamicInfinityCastle
                     int source = (start + attempt) % wing.parts.Count;
                     CastleArchitectureModule from = wing.parts[source].module;
                     if (!wing.parts[source].reachable || from.kind != CastleArchitectureModule.ModuleKind.Room) continue;
-                    GameObject prefab = Hash(shape, 420 + extension) < .3f ? junctionPrefab : roomPrefab;
+                    float branchChance = LayoutPolicy.Structure switch { 0 => .15f, 1 => .3f, 2 => .5f, _ => .7f };
+                    GameObject prefab = Hash(shape, 420 + extension) < branchChance ? junctionPrefab : roomPrefab;
                     CastleArchitectureModule target = prefab.GetComponent<CastleArchitectureModule>();
                     var entry = EntryPort(target, false);
                     foreach (var exit in from.ports)

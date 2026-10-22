@@ -104,6 +104,8 @@ MonoBehaviour:
     fragments: {fileID: 4300000, guid: f8c262619074ff848b5c9c543bbe1ec3, type: 2}
   - source: {fileID: 4300000, guid: 2486db04d1278cb42b5caab763d28241, type: 2}
     fragments: {fileID: 4300000, guid: 9f678d2825a081f4fbdecbc81f4336a3, type: 2}
+  - source: {fileID: 4300000, guid: 3f5ecfe87a0f2164d9b78878f3f25cf3, type: 2}
+    fragments: {fileID: 4300000, guid: 7334f998c75d3e941baebaf44315e9e9, type: 2}
   - source: {fileID: 4300000, guid: 2db35802de6d66a449df53d9655063b2, type: 2}
     fragments: {fileID: 4300000, guid: bca1f2c16f250e142b19f0279513bbcc, type: 2}
   player: {fileID: 0}
@@ -119,6 +121,7 @@ MonoBehaviour:
   - {fileID: 5206036527056484999, guid: 699d63cd689e61142a5204e35e152e5c, type: 3}
   - {fileID: 676802633926738023, guid: 35b558fe62386934d9eeb7f43a1d2426, type: 3}
   - {fileID: 287100196405178442, guid: 242e348a6415e0647916b161a124ee32, type: 3}
+  - {fileID: 2106960313017903048, guid: bb7e9eb4ce6a82647a2d2b8db4be7f1d, type: 3}
   - {fileID: 1636112946934938736, guid: 95de3c4d42fe19c46ad1163cd15d6c26, type: 3}
   mobileDecorationPrefabs: []
   mobileControlsPrefab: {fileID: 6751388636123340836, guid: 2f7f3dde7ae722a4aafffe20691ad702, type: 3}

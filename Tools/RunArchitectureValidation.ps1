@@ -1,4 +1,4 @@
-param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly')][string]$Mode = 'Test',
+param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model')][string]$Mode = 'Test',
     [ValidateSet('Default','Vulkan','OpenGLCore')][string]$GraphicsAPI = 'Default')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -16,21 +16,29 @@ $method = "InfinityCastleArchitectureValidation.$Mode"
 if ($Mode -in @('Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming')) { $method = "InfinityCastleTraversalValidation.$Mode" }
 if ($Mode -in @('Player', 'AndroidBuild')) { $method = "InfinityCastleBuildValidation.$Mode" }
 if ($Mode -eq 'Assembly') { $method = 'CastleTimberAssemblyBake.Assembly' }
+if ($Mode -eq 'TrainingBuild') { $method = 'InfinityCastleLearningTools.BuildTraining' }
+if ($Mode -eq 'Model') { $method = 'InfinityCastleLearningTools.ValidateModel' }
 $arguments = @('-batchmode', '-projectPath', ('"' + $project + '"'), '-executeMethod', $method, '-logFile', ('"' + $log + '"'))
 if ($GraphicsAPI -eq 'Vulkan') { $arguments += '-force-vulkan' }
 if ($GraphicsAPI -eq 'OpenGLCore') { $arguments += '-force-glcore' }
-if ($Mode -eq 'Player') { $arguments += @('-buildTarget', 'Win64') }
+if ($Mode -in @('Player', 'TrainingBuild', 'Model')) { $arguments += @('-buildTarget', 'Win64') }
 if ($Mode -eq 'AndroidBuild') { $arguments += @('-buildTarget', 'Android') }
 if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly')) { $arguments += @('-nographics', '-quit') }
 if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly')) { $arguments += '-quit' }
 $process = Start-Process 'D:/for unity/6000.0.51f1/Editor/Unity.exe' -WindowStyle Hidden -PassThru -ArgumentList $arguments
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "Architecture $Mode failed. See $log" }
+if ($Mode -in @('TrainingBuild', 'Model')) { exit 0 }
 if ($Mode -eq 'Exterior') {
     & robocopy "$project/Assets/InfinityCastle/MobileArchitecture" "$root/Assets/InfinityCastle/MobileArchitecture" /E /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { throw 'Exterior prefab copy failed.' }
 }
-Copy-Item -LiteralPath "$project/Assets/prefabs/InfinityCastleRuntime.prefab" -Destination "$root/Assets/prefabs/InfinityCastleRuntime.prefab"
+$runtimeSource = "$project/Assets/prefabs/InfinityCastleRuntime.prefab"
+$runtimeTarget = "$root/Assets/prefabs/InfinityCastleRuntime.prefab"
+# Avoid touching an identical prefab, which Unity may still have memory-mapped.
+if (!(Test-Path -LiteralPath $runtimeTarget) -or (Get-FileHash -LiteralPath $runtimeSource).Hash -ne (Get-FileHash -LiteralPath $runtimeTarget).Hash) {
+    Copy-Item -LiteralPath $runtimeSource -Destination $runtimeTarget
+}
 & robocopy "$project/Assets/InfinityCastle/CastleModules/RuntimeLod" "$root/Assets/InfinityCastle/CastleModules/RuntimeLod" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw 'Distance model metadata copy failed.' }
 if (!(Test-Path -LiteralPath "$root/Assets/InfinityCastle/CastleModules/RuntimeLod.meta")) {
@@ -41,12 +49,12 @@ if ($LASTEXITCODE -ge 8) { throw 'Mobile model metadata copy failed.' }
 if (!(Test-Path -LiteralPath "$root/Assets/InfinityCastle/CastleModules/RuntimeMobile.meta")) {
     Copy-Item -LiteralPath "$project/Assets/InfinityCastle/CastleModules/RuntimeMobile.meta" -Destination "$root/Assets/InfinityCastle/CastleModules/RuntimeMobile.meta"
 }
-foreach ($file in @('Assets/Scripts/DynamicInfinityCastle.Architecture.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.Network.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.DistrictsDense.cs.meta', 'Assets/Scripts/InfinityCastlePlayerCheck.cs.meta', 'Assets/Editor/InfinityCastleBuildValidation.cs.meta', 'Assets/Editor/InfinityCastleArchitectureValidation.cs.meta')) {
+foreach ($file in @('Assets/Scripts/DynamicInfinityCastle.Architecture.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.Network.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.DistrictsDense.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.DistrictLayout.cs.meta', 'Assets/Scripts/InfinityCastlePlayerCheck.cs.meta', 'Assets/Editor/InfinityCastleBuildValidation.cs.meta', 'Assets/Editor/InfinityCastleArchitectureValidation.cs.meta')) {
     if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }
 }
 & robocopy "$project/Assets/InfinityCastle/CastleModules/RuntimeAssembly" "$root/Assets/InfinityCastle/CastleModules/RuntimeAssembly" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw 'Timber assembly asset copy failed.' }
-foreach ($file in @('Assets/InfinityCastle/CastleModules/RuntimeAssembly.meta', 'Assets/Scripts/DynamicInfinityCastle.Assembly.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.Doors.cs.meta', 'Assets/Editor/CastleTimberAssemblyBake.cs.meta', 'Assets/Editor/CastleDoorwayBake.cs.meta', 'Assets/Editor/CastlePackStairsBake.cs.meta')) {
+foreach ($file in @('Assets/InfinityCastle/CastleModules/RuntimeAssembly.meta', 'Assets/Scripts/DynamicInfinityCastle.Assembly.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.Doors.cs.meta', 'Assets/Scripts/CastleStairRoute.cs.meta', 'Assets/Editor/CastleTimberAssemblyBake.cs.meta', 'Assets/Editor/CastleDoorwayBake.cs.meta', 'Assets/Editor/CastlePackStairsBake.cs.meta')) {
     if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }
 }
 if ($Mode -eq 'Test') { Get-Content -LiteralPath "$root/Temp/building-volume-tests.txt" }

@@ -91,6 +91,10 @@ public sealed class InfinityCastlePlayerCheck : MonoBehaviour
         Check(castle.ValidateNoBuildingOverlaps(out string clearance), "Compiled model clearance " + clearance);
         Check(castle.ValidateSurroundingCastle(out string coverage), "Compiled six-direction coverage " + coverage);
         Check(castle.UsesTrainedDirector, "Trained ML director is included in the compiled player");
+        Check(castle.ValidateDistrictDoorways(out string districtDoors), districtDoors);
+        Check(castle.ValidateDistrictVariety(out string graphVariety), graphVariety);
+        Check(castle.LearnedDecisions >= castle.architectureWingPoolSize,
+            "Compiled startup requests independent learned building plans; decisions=" + castle.LearnedDecisions);
         castle.periodicRebuilding = false; castle.simultaneousShifts = 0;
         input.MoveInput(Vector2.zero); input.SprintInput(false);
         player.transform.SetPositionAndRotation(start + Vector3.right * 112f + Vector3.up * 5f, Quaternion.identity);

@@ -234,28 +234,36 @@ and `Temp/streaming-*.png`.
 
 ### Uniform streamed districts and guarded doors
 
-The distant layout no longer substitutes a few isolated pairs for the dense spawn
-network. Every 48 m cell uses the same seeded, three/four-storey network of 12/16
-complete rooms, with variable room dimensions and one of six gravity frames.
-Facing doors have real walkways; exterior switchback flights connect floors and
-return through the remaining side doors. All three doors of every distributed
-room have a physical route, including the top/bottom wrap. These are actual room
-and stair meshes, not enclosing walls or a backdrop.
+The distant layout uses seeded doorway-graph growth inside each 48 m cell,
+not the former repeated two-by-two room stack. Three/four independently grown
+floors mix complete rooms, turn hallways and three-way junctions. Counts, ports,
+branch shape, loops, dimensions and orientation vary; the learned structure state
+biases growth rather than merely changing spacing. Eligible exterior doorway pairs
+connect floors with intact `stair_2` meshes. Blocked/unused doors receive visible
+shoji closures with collision. These are real architectural meshes, not enclosing
+walls or a backdrop.
 
-`CastlePackStairsBake` extracts only `stair_1` and `stair_3` from
+`CastlePackStairsBake` extracts `stair_1`, `stair_2` and `stair_3` from
 `Assets/Models/Danish/inifinity_castle_pack.fbx`, normalizes their walking width,
 and saves independent lightweight meshes/prefabs. No Danish building meshes are
 introduced. The stair material uses the existing castle timber finish; UV1/UV2
-construction metadata uses the same animated shader as the rooms. Stair rise/run
-fits measured mesh endpoints, with smooth fitted floor colliders and shortened
-rails so corners stay passable.
+construction metadata uses the same animated shader as the rooms. Straight stair
+rise/run fits measured mesh endpoints. The intact 1,992-triangle `stair_2` keeps
+both flights and its turn landing; its four-point walking route is measured from
+the actual mesh rather than treating it as a straight ramp. Its whole width is
+4 m (approximately 1.75 m walking lanes). Only height is fitted to the floor rise;
+horizontal proportions are preserved. Parallel approaches enter through the open
+ends, and the collider follows both slopes and the turn landing. Existing flat
+connections complete the return route without entering through the side rail.
 
 A 288 m residency halo plus a velocity-led preparation volume stays around the
 player, regardless of distance from spawn. The 192 m visible sphere is protected
 against recycling in every direction, including behind the camera. The bounded
 1,536-cell pool is layout data and instanced transforms, not thousands of new
-GameObjects. Physical rooms remain capped at 96, and nearby staircase colliders
+GameObjects. Physical module bodies remain capped at 96, and nearby staircase colliders
 lease the existing connection pool. Nothing is instantiated while streaming.
+Each body leases the selected room/hallway/junction's actual collision meshes,
+floor, roof, door states and gravity zones; changing type creates no scene objects.
 
 For the native building network, safe doorway matches still become connections.
 As authorized, unmatched/blocked doors receive opaque, timber-lattice shoji panels
@@ -266,7 +274,8 @@ connections are created, removed or recycled; connected passages stay open.
 
 The Volume and Streaming regressions verify doorway state, all distributed
 door endpoints, fitted stair endpoints/slopes and containment within collision-safe
-cells. Streaming also enforces at least 400 complete rooms within 100 m at the far
+cells. Graph fingerprints exclude scale/rotation and must vary structurally.
+Streaming also enforces nearby hallways and at least 400 complete modules within 100 m at the far
 travel samples, and checks fixed object/physics pools and hidden preparation.
 This is an automated PC check, not a measured Vivo Y400 frame-rate guarantee.
 
@@ -325,3 +334,54 @@ The corrected ARM64 APK built successfully:
 `com.infinity.castle`, minimum SDK 23 / target SDK 36. APK signature verification
 passed. SHA-256:
 `24b7f08cbc921c9bf1004a6d70f338b6cf47d26762dfda1f94ee42a50304ef37`.
+
+### Intact stair_2 and learned structure recipes (October 23)
+
+The current runtime prefab includes the complete authored `stair_2` switchback,
+its four-point route, original textured timber finish and construction metadata.
+Nearby collision leases the existing connector pool: one authored mesh collider
+and three smooth fitted walking surfaces are preallocated per connector during
+warmup, not instantiated while streaming. Distributed crossing data is bounded
+at 72 entries per cell (at most 70 populated); the 1,536-cell residency pool and
+96 physical-room pool are unchanged. Density, visible distance and textures were
+not reduced.
+
+The v2 CPU director was trained for 600,064 PPO decisions with four structure
+recipes in addition to six layouts. Each pooled building now requests its own
+startup decision. Structure choices influence safe extension branching and
+district silhouettes, with local seeded variation. This is high-level recipe
+training, not mesh synthesis. Details and held-out evaluation are in
+`Documentation/CastleLearning.md` and `Training/model-card.json`.
+
+Current Volume tests passed all six gravity frames, 38,784 district doorway
+endpoints and walking both turns of the intact stair into the next floor.
+The Vulkan Assembly test passed all 18 animated meshes and original textures.
+A compiled Windows player passed 96 learned startup decisions, control release,
+transformed collision cooking including the switchback, real jumps/deep falls
+and fixed-pool streaming. The APK identified above predates these stair/model
+changes and must be rebuilt before testing them on the phone.
+
+The current OpenGL Core Streaming check also passed 480 m legs in all six
+directions, retaining 589–658 complete rooms within 100 m at the far samples,
+hidden preparation, unchanged rendered pixels on collider promotion, and fixed
+GameObject/physics pools. None of these PC checks certifies Android frame rate.
+
+### Mixed streamed doorway graphs (October 23, later revision)
+
+The earlier structure recipes still left the same two-by-two room topology in
+every streamed cell. That fixed grid has been removed. The current generator
+grows independently seeded, port-aligned room/hallway/junction trees on each
+floor, adds clear alternative routes and uses eligible intact switchbacks
+between floors. Unused exits are visibly closed. The same 1,536 data-cell and
+96 physical-module pools remain; collider leases now switch to the selected
+module's actual mesh, floor/roof, doors and gravity zones without instantiation.
+
+Volume passed 668 distinct module/connection graphs across 880 active cells
+(excluding transforms and scale from fingerprints), 8,453 rooms, 1,974 turn
+hallways, 1,695 junctions, 22,554 connected door endpoints, 15,786 closed doors,
+2,203 intact switchbacks and actual room/stair walking. Streaming passed 480 m
+legs in all six directions with 599–617 complete modules within 100 m at far
+samples, including 186–196 hallways/junctions. Hidden preparation, unchanged
+pixels on collision promotion and fixed pools also passed. The compiled player
+passed startup, the trained director, mixed-graph checks, jumps/deep falls and
+45 m/s simulated streaming. This revision is in the project, not the older APK.

@@ -60,12 +60,13 @@ public sealed class InfinityCastleMLAgent : Agent
     public override void WriteDiscreteActionMask(IDiscreteActionMask mask)
     {
         for (int i = 0; i < 6; i++) mask.SetActionEnabled(0, i, Policy.AllowedLayout(i));
+        for (int i = 0; i < 4; i++) mask.SetActionEnabled(4, i, Policy.AllowedStructure(i));
     }
     public override void OnActionReceived(ActionBuffers actions)
     {
         var a = actions.DiscreteActions;
-        if (training) AddReward(Policy.Reward(a[0], a[1], a[2], a[3]));
-        Policy.Accept(a[0], a[1], a[2], a[3]);
+        if (training) AddReward(Policy.Reward(a[0], a[1], a[2], a[3], a[4]));
+        Policy.Accept(a[0], a[1], a[2], a[3], a[4]);
         if (!training)
         {
             Pending = false; PlanReady = true;
@@ -92,5 +93,13 @@ public sealed class InfinityCastleMLAgent : Agent
         var a = actions.DiscreteActions;
         a[0] = Policy.FallbackLayout(); a[1] = Policy.observations[27] < .5f ? 0 : (Policy.Motion + 1) % 4;
         a[2] = (Policy.Direction + 1) % 6; a[3] = Policy.observations[27] < .5f || Policy.observations[37] > .35f ? 2 : Policy.observations[30] > .6f ? 0 : 1;
+        // Pick a least-used structure instead of a fixed four-step cycle.
+        int start = random.Next(4), best = (Policy.Structure + 1) % 4;
+        for (int i = 0; i < 4; i++)
+        {
+            int candidate = (start + i) % 4;
+            if (Policy.AllowedStructure(candidate) && Policy.observations[40 + candidate] <= Policy.observations[40 + best]) best = candidate;
+        }
+        a[4] = best;
     }
 }

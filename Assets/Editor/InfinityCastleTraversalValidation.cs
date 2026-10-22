@@ -68,6 +68,7 @@ public static class InfinityCastleTraversalValidation
                 }
                 Check(castle.ValidateDistributedDistricts(out string coverage), "Full surrounding volume after 480 m travel " + direction + ": " + coverage);
                 Check(castle.ValidateDistrictDoorways(out string connectedDoors), connectedDoors);
+                Check(castle.ValidateDistrictVariety(out string graphVariety), graphVariety);
                 int localRooms = blocks.Values.Cast<object>().SelectMany(block => ((Array)Field(block, "rooms")).Cast<object>())
                     .Count(room => (bool)Field(room, "active") && ((Bounds)Field(room, "bounds")).SqrDistance(actor.transform.position) < 100f * 100f);
                 if (actor.transform.position.sqrMagnitude > 200f * 200f)

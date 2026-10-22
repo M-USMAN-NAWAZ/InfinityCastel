@@ -3,16 +3,18 @@ using UnityEngine;
 // Shared by the training curriculum and the live castle; no scene or physics dependencies.
 public sealed class CastleDirectorPolicy
 {
-    public const int ObservationCount = 40;
-    public static readonly int[] Branches = { 6, 4, 6, 3 };
+    public const int ObservationCount = 48;
+    public static readonly int[] Branches = { 6, 4, 6, 3, 4 };
     public enum RouteKind { Attached, Stairs, Jump, Distant }
     public readonly float[] observations = new float[ObservationCount];
     private readonly int[] history = new int[8];
+    private readonly int[] structures = new int[8], combinations = new int[8];
     private int cursor, count;
     public int Layout { get; private set; }
     public int Motion { get; private set; }
     public int Direction { get; private set; }
     public int Tempo { get; private set; } = 1;
+    public int Structure { get; private set; }
     public int Decisions { get; private set; }
     public int PreviousLayout => count > 0 ? history[(cursor + 7) % 8] : -1;
     public int OlderLayout => count > 1 ? history[(cursor + 6) % 8] : -1;
@@ -30,6 +32,7 @@ public sealed class CastleDirectorPolicy
     public void Reset(int seed)
     {
         cursor = count = Decisions = 0; Layout = Mathf.Abs(seed % 6); Motion = Direction = 0; Tempo = 1;
+        Structure = Mathf.Abs(seed % 4);
         System.Array.Clear(observations, 0, observations.Length);
     }
     public void Observe(Vector4 routes, float gravityRoutes, bool grounded, bool busy, float poolUse,
@@ -49,6 +52,8 @@ public sealed class CastleDirectorPolicy
         observations[36] = coverage; observations[37] = blocked;
         int distinct = 0; for (int i = 0; i < 6; i++) if (observations[i] > 0f) distinct++;
         observations[38] = distinct / 6f; observations[39] = Mathf.Min(Decisions, 20) / 20f;
+        for (int i = 0; i < count; i++) observations[40 + structures[i]] += 1f / count;
+        observations[44 + Structure] = 1f;
     }
     public RouteKind Route(float value)
     {
@@ -77,7 +82,8 @@ public sealed class CastleDirectorPolicy
         for (int i = 0; i < 4; i++) score += (target[i] - observations[22 + i]) * mixtures[layout][i] * 4f;
         return score - observations[layout] * .8f;
     }
-    public float Reward(int layout, int motion, int direction, int tempo)
+    public bool AllowedStructure(int structure) => count == 0 || structure != Structure;
+    public float Reward(int layout, int motion, int direction, int tempo, int structure)
     {
         float value = LayoutScore(layout) + (AllowedLayout(layout) ? .4f : -1f);
         value += motion != Motion ? .12f : -.12f;
@@ -87,12 +93,18 @@ public sealed class CastleDirectorPolicy
         if (observations[37] > .35f && motion == 3) value -= .3f;
         int desiredTempo = falling || observations[37] > .35f ? 2 : observations[30] > .6f ? 0 : 1;
         value += tempo == desiredTempo ? .25f : -.15f;
+        value += AllowedStructure(structure) ? .25f : -.8f;
+        value -= observations[40 + structure] * .9f;
+        int combination = layout * 4 + structure;
+        for (int i = 0; i < count; i++) if (combinations[i] == combination) value -= .35f;
         return value;
     }
-    public void Accept(int layout, int motion, int direction, int tempo)
+    public void Accept(int layout, int motion, int direction, int tempo, int structure)
     {
         Layout = Mathf.Clamp(layout, 0, 5); Motion = Mathf.Clamp(motion, 0, 3);
         Direction = Mathf.Clamp(direction, 0, 5); Tempo = Mathf.Clamp(tempo, 0, 2);
+        Structure = Mathf.Clamp(structure, 0, 3);
+        structures[cursor] = Structure; combinations[cursor] = Layout * 4 + Structure;
         history[cursor] = Layout; cursor = (cursor + 1) % history.Length; count = Mathf.Min(count + 1, history.Length);
         Decisions++;
     }
