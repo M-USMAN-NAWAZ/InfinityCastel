@@ -17,6 +17,7 @@ public partial class DynamicInfinityCastle
     {
         public Vector3 position, scale;
         public Quaternion rotation;
+        public Matrix4x4 matrix;
         public Bounds bounds;
         public bool active;
         public DistrictBody body;
@@ -182,7 +183,8 @@ public partial class DynamicInfinityCastle
             room.rotation = basis * Quaternion.Euler(0f, row * 180f, 0f);
             room.position = centre + basis * new Vector3(col == 0 ? -7.2f : 7.2f, -15f + floor * floorStep, row == 0 ? -8.2f : 8.2f);
             room.scale = new Vector3(Mathf.Lerp(.95f, 1.28f, Hash(shape, 838)), Mathf.Lerp(1f, 1.14f, Hash(shape, 839)), Mathf.Lerp(.9f, 1.28f, Hash(shape, 840)));
-            room.bounds = CastleGeometry.TransformBounds(districtModuleBounds, Matrix4x4.TRS(room.position, room.rotation, room.scale));
+            room.matrix = Matrix4x4.TRS(room.position, room.rotation, room.scale);
+            room.bounds = CastleGeometry.TransformBounds(districtModuleBounds, room.matrix);
             room.active = true; block.bounds.Encapsulate(room.bounds);
         }
         int used = 0;
@@ -456,7 +458,7 @@ public partial class DynamicInfinityCastle
                 float distance = room.bounds.SqrDistance(player.position);
                 if (distance > CastleVisibleRadius * CastleVisibleRadius) continue;
                 int level = distance < 18f * 18f ? 0 : distance < 45f * 45f ? 1 : 2;
-                Matrix4x4 world = Matrix4x4.TRS(room.position, room.rotation, room.scale);
+                Matrix4x4 world = room.matrix;
                 Vector4 construction = DistrictTimber(ref room.assemblySeen, ref room.construction, room.bounds, camera);
                 foreach (DistrictDraw draw in districtDraws[level])
                 { draw.instances.Add(world * draw.local); draw.construction.Add(construction); }
@@ -479,9 +481,9 @@ public partial class DynamicInfinityCastle
             var parameters = new RenderParams(draw.material) { camera = camera, shadowCastingMode = ShadowCastingMode.Off,
                 receiveShadows = false, lightProbeUsage = LightProbeUsage.Off, layer = gameObject.layer,
                 worldBounds = new Bounds(player.position, Vector3.one * 750f), matProps = draw.properties };
-            for (int start = 0; start < draw.instances.Count; start += 128)
+            for (int start = 0; start < draw.instances.Count; start += CastleInstanceBatchSize)
             {
-                int count = Mathf.Min(128, draw.instances.Count - start);
+                int count = Mathf.Min(CastleInstanceBatchSize, draw.instances.Count - start);
                 for (int i = 0; i < count; i++)
                 { timberBatch[i] = draw.construction[start + i]; timberMatrices[i] = draw.instances[start + i]; }
                 draw.properties.SetVectorArray(TimberInstanceBuildId, timberBatch);

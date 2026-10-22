@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
@@ -15,7 +16,19 @@ public sealed class CastleHeadlessCheckShaders : IPreprocessShaders
     public void OnProcessShader(Shader shader, ShaderSnippetData snippet, IList<ShaderCompilerData> data)
     {
         // Only the opt-in headless physics test; never the Android game build.
-        if (SessionState.GetBool("Castle.HeadlessPlayerCheck", false)) data.Clear();
+        if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.StandaloneWindows64 &&
+            SessionState.GetBool("Castle.HeadlessPlayerCheck", false)) { data.Clear(); return; }
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android ||
+            shader.name != "Infinity Castle/Architecture" || snippet.passName != "Castle Forward") return;
+        var instancing = new ShaderKeyword("INSTANCING_ON");
+        foreach (var platform in new[] { ShaderCompilerPlatform.GLES3x, ShaderCompilerPlatform.Vulkan })
+        {
+            int total = data.Count(item => item.shaderCompilerPlatform == platform);
+            int instanced = data.Count(item => item.shaderCompilerPlatform == platform && item.shaderKeywordSet.IsEnabled(instancing));
+            UnityEngine.Debug.Log($"CASTLE_ANDROID_SHADER {platform}: variants={total}, instanced={instanced}");
+            if (total == 0 || instanced == 0 || instanced == total)
+                throw new BuildFailedException("Castle requires regular AND instanced variants on " + platform + ". Do not strip runtime instancing.");
+        }
     }
 }
 
@@ -47,9 +60,14 @@ public static class InfinityCastleBuildValidation
     }
     public static void AndroidBuild()
     {
-        string output = Path.GetFullPath("../../Builds/InfinityCastle-Android-mobile-meshes.apk");
+        string output = Path.GetFullPath("../../Builds/InfinityCastle-Android-dense-textured.apk");
         Directory.CreateDirectory(Path.GetDirectoryName(output));
         EditorUserBuildSettings.buildAppBundle = false;
+        SessionState.SetBool("Castle.HeadlessPlayerCheck", false);
+        var graphics = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);
+        // KeepAll=2. No scene renderer exists yet for runtime-only instanced castle districts.
+        graphics.FindProperty("m_InstancingStripping").intValue = 2;
+        graphics.ApplyModifiedPropertiesWithoutUndo();
         Build(BuildTarget.Android, output, BuildOptions.None);
         File.WriteAllText(Path.GetFullPath("../castle-android-build.txt"), "PASS Android ARM64 player build: " + output + "\nBytes=" + new FileInfo(output).Length);
     }

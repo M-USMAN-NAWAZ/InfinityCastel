@@ -71,7 +71,9 @@ public static class CastleTimberAssemblyBake
     {
         InfinityCastleArchitectureValidation.Install();
         EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        ShaderUtil.allowAsyncCompilation = false; // A capture must wait for real GPU programs, not an editor placeholder.
         using var report = new StreamWriter(Path.GetFullPath("../castle-timber-assembly-tests.txt")) { AutoFlush = true };
+        report.WriteLine("Actual graphics backend=" + SystemInfo.graphicsDeviceType + "; GPU=" + SystemInfo.graphicsDeviceName);
         void Check(bool value, string message)
         { report.WriteLine((value ? "PASS " : "FAIL ") + message); if (!value) throw new InvalidOperationException(message); }
         var castle = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/prefabs/InfinityCastleRuntime.prefab")).GetComponent<DynamicInfinityCastle>();
@@ -163,7 +165,12 @@ public static class CastleTimberAssemblyBake
             UnityEngine.Object.DestroyImmediate(pixels); camera.targetTexture = null; RenderTexture.active = previous;
             RenderTexture.ReleaseTemporary(target); return values;
         }
+        Capture("reference-warmup.png");
         Color32[] reference = Capture("reference.png");
+        Check(sourceRenderer.sharedMaterial.shader.isSupported &&
+            reference.Count(pixel => pixel.r > 220 && pixel.b > 180 && pixel.g < 70) < reference.Length / 100 &&
+            reference.Count(pixel => pixel.r > 100 && pixel.g > 55 && pixel.b < pixel.r * .8f) > 500,
+            "The real castle shader renders its textures, not the pink error shader");
         report.WriteLine("Reference renderer: enabled=" + sourceRenderer.enabled + ", off=" + sourceRenderer.forceRenderingOff +
             ", active=" + sourceRenderer.gameObject.activeInHierarchy + ", clock=" + sourceRenderer.sharedMaterial.GetVector("_CastleBuild"));
         sourceRenderer.forceRenderingOff = true;
@@ -186,7 +193,7 @@ public static class CastleTimberAssemblyBake
             Check(scatteredPixels > 100, "Timber moves outside the final silhouette during flight; this is not a dissolve: pixels=" + scatteredPixels);
             Collider[] colliders = art.GetComponentsInChildren<Collider>();
             Check(colliders.Length > 0 && colliders.All(c => c.enabled), "Visual assembly never disables the room collider");
-            // Exercise the production 128-instance batching, including a second batch and different clocks.
+            // Exercise three production 64-instance batches and independent construction clocks.
             Type drawType = typeof(DynamicInfinityCastle).GetNestedType("DistrictDraw", flags);
             object draw = Activator.CreateInstance(drawType, true);
             Set(draw, "mesh", animated); Set(draw, "material", sourceRenderer.sharedMaterial);
@@ -203,7 +210,8 @@ public static class CastleTimberAssemblyBake
             try
             {
                 Color32[] batch = Capture("instanced-second-batch.png");
-                Check(batch.Count(Visible) > 10000, "The 129th room renders its own clock after the 128-instance batch boundary");
+                Check(batch.Count(Visible) > 10000 && batch.Count(pixel => pixel.r > 220 && pixel.b > 180 && pixel.g < 70) < batch.Length / 100,
+                    "All 129 rooms survive mobile batch splitting; the third batch renders its own clock without pink pixels");
                 clocks[128] = new Vector4(0, 0, 0, 2);
                 Check(Capture("instanced-pending.png").Count(Visible) == 0, "Pending rooms do not pop in before their construction clock starts");
                 clocks[0] = new Vector4(0, 1.8f, 42, 1);

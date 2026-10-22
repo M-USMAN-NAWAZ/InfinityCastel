@@ -12,8 +12,10 @@ public partial class DynamicInfinityCastle
     private static readonly int TimberBuildId = Shader.PropertyToID("_CastleBuild");
     private static readonly int TimberInstanceBuildId = Shader.PropertyToID("_CastleInstanceBuild");
     private MaterialPropertyBlock timberProperties;
-    private readonly Vector4[] timberBatch = new Vector4[128];
-    private readonly Matrix4x4[] timberMatrices = new Matrix4x4[128];
+    // Must match the shader's forcemaxcount; density is unchanged, only draw splitting changes.
+    private const int CastleInstanceBatchSize = 64;
+    private readonly Vector4[] timberBatch = new Vector4[CastleInstanceBatchSize];
+    private readonly Matrix4x4[] timberMatrices = new Matrix4x4[CastleInstanceBatchSize];
     private readonly Plane[] timberPlanes = new Plane[6];
     private readonly List<Link> timberLinks = new();
     private bool timberHooked;

@@ -160,7 +160,7 @@ actual build-time mesh access restrictions. It checks native collider cooking
 under rotated/nonuniform parents, fully prepared startup, normal jumps,
 no distance-based respawn, a real deep fall, sustained frame-budgeted 45 m/s travel,
 fixed pool size, full generation and ML inclusion. This is not a phone
-performance test. `-Mode AndroidBuild` produces `Builds/InfinityCastle-Android-mobile-meshes.apk`;
+performance test. `-Mode AndroidBuild` produces `Builds/InfinityCastle-Android-dense-textured.apk`;
 physical-device testing is still required.
 Shaders are stripped only from the opt-in headless test player, not the Android game.
 `-Mode Recovery` separately checks supported deep drops, horizontal travel,
@@ -287,3 +287,41 @@ starts during loading and preserved the skybox/fog; full preload was 49.66 s.
 The rendered check recorded a 16.84 ms maximum streaming work slice on this PC.
 These are different test environments, not Android loading/FPS claims. A new
 Android build and physical Vivo Y400 profiling are still required.
+
+### Android shader retention and unchanged density (October 22)
+
+The earlier Android build did not prove that runtime-only instanced castle
+variants were retained. Graphics Settings used Strip Unused (0), although the
+district rooms/paths are created after scene loading. It now uses Keep All (2),
+and AndroidBuild enforces that setting in the isolated build project. The final
+shader preprocessor rejects a castle pass missing either regular or instanced
+variants on GLES3 or Vulkan. The current build reports eight variants per API:
+four regular and four instanced. Headless Windows test stripping cannot run on
+Android. See Unity's [instancing stripping guidance](https://docs.unity3d.com/6000.0/Documentation/Manual/gpu-instancing-strip-variants.html).
+
+The original textured/construction shader now explicitly targets shader model
+3.5 and uses a fixed 64-instance buffer limit. The C# draw loops split at the
+same limit and rebase transforms and construction clocks together. More batches
+do not mean fewer rooms: no room/path counts, residency/render radii, LOD meshes,
+textures, lighting finish or gravity rules were reduced. Nonuniform scale and
+inverse matrices are retained. District room transforms are cached when their
+layout changes instead of recomputing them for every render.
+
+The GPU assembly check passed on Vulkan (Intel UHD 620), including the original
+room's textured appearance, 129 rooms across three batches, independent clocks,
+rigid timber flight and textured shoji/stairs. Captures disable asynchronous
+shader compilation and warm the reference renderer first so an editor placeholder
+is not mistaken for the real shader. The test rejects pink error pixels and an
+untextured/black reference.
+
+The OpenGL Core streaming check passed 480 m in all six directions, maintaining
+589–658 complete rooms within 100 m at the far samples, hidden preparation,
+connected stairs and unchanged object/96-body pools. These tests run on this PC,
+not the Vivo Y400. They do not certify Android FPS, thermal behaviour or the
+phone driver's runtime shader compilation; the new APK still needs phone testing.
+
+The corrected ARM64 APK built successfully:
+`Builds/InfinityCastle-Android-dense-textured.apk`, 161,565,124 bytes, package
+`com.infinity.castle`, minimum SDK 23 / target SDK 36. APK signature verification
+passed. SHA-256:
+`24b7f08cbc921c9bf1004a6d70f338b6cf47d26762dfda1f94ee42a50304ef37`.

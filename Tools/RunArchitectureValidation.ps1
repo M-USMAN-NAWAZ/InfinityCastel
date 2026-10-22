@@ -1,4 +1,5 @@
-param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly')][string]$Mode = 'Test')
+param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly')][string]$Mode = 'Test',
+    [ValidateSet('Default','Vulkan','OpenGLCore')][string]$GraphicsAPI = 'Default')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $root 'Temp/ArchitectureValidation'
@@ -16,6 +17,8 @@ if ($Mode -in @('Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'C
 if ($Mode -in @('Player', 'AndroidBuild')) { $method = "InfinityCastleBuildValidation.$Mode" }
 if ($Mode -eq 'Assembly') { $method = 'CastleTimberAssemblyBake.Assembly' }
 $arguments = @('-batchmode', '-projectPath', ('"' + $project + '"'), '-executeMethod', $method, '-logFile', ('"' + $log + '"'))
+if ($GraphicsAPI -eq 'Vulkan') { $arguments += '-force-vulkan' }
+if ($GraphicsAPI -eq 'OpenGLCore') { $arguments += '-force-glcore' }
 if ($Mode -eq 'Player') { $arguments += @('-buildTarget', 'Win64') }
 if ($Mode -eq 'AndroidBuild') { $arguments += @('-buildTarget', 'Android') }
 if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly')) { $arguments += @('-nographics', '-quit') }
