@@ -9,8 +9,17 @@ public static class CastlePackStairsBake
     private const string Folder = "Assets/InfinityCastle/CastleModules/RuntimeMobile/";
     public static GameObject Prepare(string sourceName, string name, Shader shader)
     {
-        GameObject pack = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Models/Danish/inifinity_castle_pack.fbx");
-        MeshFilter source = Array.Find(pack.GetComponentsInChildren<MeshFilter>(true), filter => filter.name == sourceName);
+        string retopology = CastleRetopologyBake.Folder + name + ".fbx";
+        bool rebuilt = AssetDatabase.LoadAssetAtPath<GameObject>(retopology) != null;
+        if (rebuilt)
+        {
+            var importer = (ModelImporter)AssetImporter.GetAtPath(retopology);
+            importer.isReadable = true; importer.importAnimation = false; importer.importLights = false;
+            importer.importCameras = false; importer.materialImportMode = ModelImporterMaterialImportMode.None;
+            importer.SaveAndReimport();
+        }
+        GameObject pack = AssetDatabase.LoadAssetAtPath<GameObject>(rebuilt ? retopology : "Assets/Models/Danish/inifinity_castle_pack.fbx");
+        MeshFilter source = Array.Find(pack.GetComponentsInChildren<MeshFilter>(true), filter => rebuilt || filter.name == sourceName);
         if (source == null) throw new InvalidOperationException("Missing staircase in supplied FBX: " + sourceName);
         // Imported FBX meshes can be editor-readable but stripped in a player. A new mesh
         // explicitly retains CPU vertices for the non-uniform runtime collider cooking.
@@ -20,6 +29,14 @@ public static class CastlePackStairsBake
         var triangles = new List<int>();
         for (int i = 0; i < original.subMeshCount; i++) triangles.AddRange(original.GetTriangles(i));
         mesh.subMeshCount = 1; mesh.SetTriangles(triangles, 0);
+        if (rebuilt)
+        {
+            Matrix4x4 local = pack.transform.worldToLocalMatrix * source.transform.localToWorldMatrix;
+            Vector3[] points = mesh.vertices, normals = mesh.normals;
+            for (int i = 0; i < points.Length; i++)
+            { points[i] = local.MultiplyPoint3x4(points[i]); normals[i] = local.inverse.transpose.MultiplyVector(normals[i]).normalized; }
+            mesh.vertices = points; mesh.normals = normals;
+        }
         mesh.RecalculateBounds();
         Bounds bounds = mesh.bounds;
         float scale = (sourceName == "stair_2" ? 4f : 2.4f) / Mathf.Min(bounds.size.x, bounds.size.z);
@@ -35,6 +52,7 @@ public static class CastlePackStairsBake
         if (material == null) { material = new Material(shader); AssetDatabase.CreateAsset(material, materialPath); }
         material.SetTexture("_WoodMap", AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/InfinityCastle/CastleTheme/Timber.png"));
         material.SetFloat("_ThemeStrength", 1f); material.SetFloat("_FinishMode", 1f); material.enableInstancing = true;
+        if (rebuilt) CastleRetopologyBake.Material(material, pack);
         EditorUtility.SetDirty(material);
         GameObject root = new(name);
         try
@@ -79,6 +97,7 @@ public static class CastlePackStairsBake
                 if (Mathf.Abs(route[1].y - route[2].y) > .12f || route[3].y - route[0].y < 3f)
                     throw new InvalidOperationException("stair_2 landing/entrance measurement failed: " + string.Join(" -> ", route));
                 CastleStairRoute metadata = root.AddComponent<CastleStairRoute>(); metadata.points = route; metadata.laneWidth = 1.75f;
+                metadata.hasAuthoredTreads = rebuilt;
                 Debug.Log("Authored stair_2 route: " + string.Join(" -> ", route));
             }
             return PrefabUtility.SaveAsPrefabAsset(root, Folder + name + ".prefab");

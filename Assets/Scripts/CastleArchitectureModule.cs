@@ -21,6 +21,7 @@ public sealed class CastleArchitectureModule : MonoBehaviour
     public Vector2 roofSize;
     public Port[] ports = System.Array.Empty<Port>();
     public bool requiresPassageRepair;
+    public bool hasAuthoredFloors;
     public Bounds WorldBounds
     {
         get

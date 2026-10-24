@@ -1,0 +1,17 @@
+{
+  "source": "DoubleStaresBase",
+  "source_triangles": 50186,
+  "near": {
+    "triangles": 6000,
+    "atlas": 1024,
+    "materials": 1,
+    "fbx_bytes": 261196
+  },
+  "medium": {
+    "triangles": 2500,
+    "atlas": 512,
+    "materials": 1,
+    "fbx_bytes": 119260
+  },
+  "seconds": 24.53
+}

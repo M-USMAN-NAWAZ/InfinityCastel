@@ -72,35 +72,35 @@ MonoBehaviour:
   animateTimberConstruction: 1
   timberConstructionSeconds: 1.8
   timberAssemblyModels:
-  - source: {fileID: -3920555075548088813, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}
+  - source: {fileID: -6723317488917183137, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}
     fragments: {fileID: 4300000, guid: 44d7ae525b3b2ee49b6835d8c1586c21, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 2bb4882a57b19404b81a7b2ea3dcb97a, type: 3}
+  - source: {fileID: -6144991980030693542, guid: 2bb4882a57b19404b81a7b2ea3dcb97a, type: 3}
     fragments: {fileID: 4300000, guid: 9a8db8b785db5d9499b41becfed2df98, type: 2}
-  - source: {fileID: -3920555075548088813, guid: d8efb8a356845c24ea06dfad3e3499a8, type: 3}
+  - source: {fileID: 3219533343873789832, guid: d8efb8a356845c24ea06dfad3e3499a8, type: 3}
     fragments: {fileID: 4300000, guid: 768e07b013779f44691c4441a9f1355e, type: 2}
-  - source: {fileID: -3920555075548088813, guid: ee29e3c103ff8e44e8a2b1da629de2e2, type: 3}
+  - source: {fileID: -723082366821387394, guid: ee29e3c103ff8e44e8a2b1da629de2e2, type: 3}
     fragments: {fileID: 4300000, guid: 4c36d000b38c3c64691564cf6a1cade1, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 2166817e65069414faccc5235f47c999, type: 3}
+  - source: {fileID: -7808232144527537285, guid: 2166817e65069414faccc5235f47c999, type: 3}
     fragments: {fileID: 4300000, guid: 2fc2b7d738a12ff4f96db30c4029526d, type: 2}
-  - source: {fileID: -3920555075548088813, guid: e4c9ede43f2c2fc4ba834b0233c2caaa, type: 3}
+  - source: {fileID: -3788196241868791278, guid: e4c9ede43f2c2fc4ba834b0233c2caaa, type: 3}
     fragments: {fileID: 4300000, guid: a1fa5380ee2d9034691082d25d7b8ae9, type: 2}
-  - source: {fileID: -3920555075548088813, guid: af06308a357a5c74f95f9b66f1a3bd34, type: 3}
+  - source: {fileID: -7803746106552831471, guid: af06308a357a5c74f95f9b66f1a3bd34, type: 3}
     fragments: {fileID: 4300000, guid: 38fce31a30a57624eae9b8be1312130f, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 20ba6cb0183d38b41bdab95e72b151f6, type: 3}
+  - source: {fileID: -7700269102793266134, guid: 20ba6cb0183d38b41bdab95e72b151f6, type: 3}
     fragments: {fileID: 4300000, guid: 472df24934028d54ab2d2f5d51d6a50f, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 04e4cbde56856d54a8a917a28588f268, type: 3}
+  - source: {fileID: 8571558179834499522, guid: 04e4cbde56856d54a8a917a28588f268, type: 3}
     fragments: {fileID: 4300000, guid: 95756d770d2880448b585e4f9a3b3f5e, type: 2}
-  - source: {fileID: -3920555075548088813, guid: d0701b715aa764a45a5a45b489353feb, type: 3}
+  - source: {fileID: -5840264278167405160, guid: d0701b715aa764a45a5a45b489353feb, type: 3}
     fragments: {fileID: 4300000, guid: c31bad4a38266ad408ce543fa7d94b13, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 1af0c03525449444b90d658de5c5b515, type: 3}
+  - source: {fileID: 776513887413776492, guid: 1af0c03525449444b90d658de5c5b515, type: 3}
     fragments: {fileID: 4300000, guid: 5df161e25f67d6c4e88eb93cdf1bb03a, type: 2}
-  - source: {fileID: -3920555075548088813, guid: c686418a70e31974cbc28140dfaf80ec, type: 3}
+  - source: {fileID: -671045883405182007, guid: c686418a70e31974cbc28140dfaf80ec, type: 3}
     fragments: {fileID: 4300000, guid: 1b81c73ff2a6e92458fcfa89d5c81e1d, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 14f28dac8938e43429ba614be9c96556, type: 3}
+  - source: {fileID: -4139466416230982134, guid: 14f28dac8938e43429ba614be9c96556, type: 3}
     fragments: {fileID: 4300000, guid: d1fd61819f8216d4ab75544749fc3eff, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 4707fb3d497e10649a12dd61dec6f33e, type: 3}
+  - source: {fileID: -3397877770556754092, guid: 4707fb3d497e10649a12dd61dec6f33e, type: 3}
     fragments: {fileID: 4300000, guid: 4f85dad678f98044a8e6fc6efbb186a9, type: 2}
-  - source: {fileID: -3920555075548088813, guid: 974b5b05cdb758845aee0f90b75ffa16, type: 3}
+  - source: {fileID: -8058321719375237309, guid: 974b5b05cdb758845aee0f90b75ffa16, type: 3}
     fragments: {fileID: 4300000, guid: f8c262619074ff848b5c9c543bbe1ec3, type: 2}
   - source: {fileID: 4300000, guid: 2486db04d1278cb42b5caab763d28241, type: 2}
     fragments: {fileID: 4300000, guid: 9f678d2825a081f4fbdecbc81f4336a3, type: 2}

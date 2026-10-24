@@ -37,6 +37,7 @@ public static class InfinityCastleArchitectureValidation
     public static void Install()
     {
         CastleRuntimeModelImporter.Prepare();
+        CastleRetopologyBake.PrepareTexture();
         GameObject root = PrefabUtility.LoadPrefabContents(Runtime);
         try
         {
@@ -65,11 +66,12 @@ public static class InfinityCastleArchitectureValidation
                 importer.importAnimation = false; importer.addCollider = false; importer.isReadable = false;
                 importer.SaveAndReimport();
                 generator.architectureDistanceModels.Add(AssetDatabase.LoadAssetAtPath<GameObject>(path));
-                string atlas = MobileArt + name + "_LOD2Albedo.png";
+                GameObject distanceModel = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                string atlas = CastleRetopologyBake.TextureFor(distanceModel, MobileArt + name + "_LOD2Albedo.png");
                 var textureImporter = (TextureImporter)AssetImporter.GetAtPath(atlas);
-                textureImporter.maxTextureSize = 512; textureImporter.mipmapEnabled = true; textureImporter.wrapMode = TextureWrapMode.Clamp;
+                textureImporter.maxTextureSize = 1024; textureImporter.mipmapEnabled = true; textureImporter.wrapMode = TextureWrapMode.Clamp;
                 textureImporter.SetPlatformTextureSettings(new TextureImporterPlatformSettings { name = "Android", overridden = true,
-                    maxTextureSize = 512, format = TextureImporterFormat.ASTC_6x6 });
+                    maxTextureSize = 1024, format = TextureImporterFormat.ASTC_6x6 });
                 textureImporter.textureCompression = TextureImporterCompression.Compressed; textureImporter.SaveAndReimport();
                 string materialPath = MobileArt + name + "_LOD2.mat";
                 Material material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
@@ -80,6 +82,7 @@ public static class InfinityCastleArchitectureValidation
                 }
                 material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(atlas));
                 material.SetVector("_CastleBuild", Vector4.zero);
+                CastleRetopologyBake.Material(material, distanceModel);
                 material.enableInstancing = true; EditorUtility.SetDirty(material);
                 generator.architectureDistanceMaterials.Add(material);
             }
@@ -100,6 +103,7 @@ public static class InfinityCastleArchitectureValidation
                 AssetDatabase.CreateAsset(districtMaterial, district + "DistrictRoom.mat");
             }
             districtMaterial.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(district + "CorrectedRoom_DistrictAlbedo.png"));
+            CastleRetopologyBake.Material(districtMaterial, generator.architectureDistrictModel);
             districtMaterial.SetVector("_CastleBuild", Vector4.zero);
             districtMaterial.enableInstancing = true; EditorUtility.SetDirty(districtMaterial);
             generator.architectureDistrictMaterial = districtMaterial;
@@ -130,7 +134,8 @@ public static class InfinityCastleArchitectureValidation
         importer.importAnimation = false; importer.importCameras = false; importer.importLights = false;
         importer.isReadable = true; importer.addCollider = true;
         importer.SaveAndReimport();
-        string atlas = MobileArt + name + "Albedo.png";
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        string atlas = CastleRetopologyBake.TextureFor(model, MobileArt + name + "Albedo.png");
         var texture = AssetImporter.GetAtPath(atlas) as TextureImporter;
         if (texture == null) throw new InvalidOperationException("Missing rebaked mobile atlas: " + atlas);
         texture.maxTextureSize = 1024; texture.mipmapEnabled = true; texture.wrapMode = TextureWrapMode.Clamp;
@@ -144,12 +149,14 @@ public static class InfinityCastleArchitectureValidation
         material.shader = shader; material.enableInstancing = true;
         material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(atlas));
         material.SetFloat("_ThemeStrength", 0f); EditorUtility.SetDirty(material);
+        CastleRetopologyBake.Material(material, model);
         material.SetVector("_CastleBuild", Vector4.zero);
         GameObject root = new(name);
         try
         {
             GameObject art = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>(path), root.transform);
             foreach (Renderer renderer in art.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = material;
+            CastleRetopologyBake.Openings(root, name);
             return PrefabUtility.SaveAsPrefabAsset(root, MobileArt + name + ".prefab");
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
@@ -246,7 +253,17 @@ public static class InfinityCastleArchitectureValidation
                 Check(shaft, "A genuine deep shaft exists above already-generated castle geometry");
                 Teleport(drop);
                 float lowest = player.transform.position.y;
-                for (int frame = 0; frame < 300; frame++) { Frame(1); lowest = Mathf.Min(lowest, player.transform.position.y); }
+                Vector3 fallUp = castle.PlayerUp;
+                for (int frame = 0; frame < 300; frame++)
+                {
+                    Frame(1); lowest = Mathf.Min(lowest, player.transform.position.y);
+                    if (Vector3.Dot(fallUp, castle.PlayerUp) < .99f)
+                    {
+                        InfiniteCastleGrid zone = actor.GetComponent<InfinityGravityBody>().CurrentZone;
+                        report.WriteLine($"DROP gravity frame={frame}; at={player.transform.position}; up={castle.PlayerUp}; zone={zone?.name}; owner={zone?.transform.parent?.name}");
+                        fallUp = castle.PlayerUp;
+                    }
+                }
                 Check(player.Grounded && lowest < drop.y - 18f && lowest > drop.y - 120f,
                     "Deep jump lands on castle beneath: descent=" + (drop.y - lowest) + ", grounded=" + player.Grounded + ", up=" + castle.PlayerUp);
                 Check(castle.BuildingStairJoinCount >= castle.BuildingWingCount - 3,

@@ -1,0 +1,17 @@
+{
+  "source": "SingleStareBase",
+  "source_triangles": 50000,
+  "near": {
+    "triangles": 6000,
+    "atlas": 1024,
+    "materials": 1,
+    "fbx_bytes": 261900
+  },
+  "medium": {
+    "triangles": 2500,
+    "atlas": 512,
+    "materials": 1,
+    "fbx_bytes": 120668
+  },
+  "seconds": 22.31
+}

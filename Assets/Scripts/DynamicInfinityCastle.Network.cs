@@ -265,8 +265,9 @@ public partial class DynamicInfinityCastle
         {
             BoxCollider rail = link.rails[side];
             rail.transform.SetPositionAndRotation((start + end) * .5f + facing * Vector3.right * ((side == 0 ? -1f : 1f) * (width - .1f) * .5f) + normal * .5f, facing);
-            rail.size = new Vector3(.1f, 1f, length);
-            rail.gameObject.SetActive(true);
+            float railLength = length - 2f * PathRailEndClearance;
+            rail.size = new Vector3(.1f, 1f, Mathf.Max(.05f, railLength));
+            rail.gameObject.SetActive(railLength > .1f);
         }
         link.root.SetActive(true);
         link.bounds = ConnectionVisualBounds(link);

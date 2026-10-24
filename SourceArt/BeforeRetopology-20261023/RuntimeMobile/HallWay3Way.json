@@ -1,0 +1,17 @@
+{
+  "source": "HallWay3Way",
+  "source_triangles": 50080,
+  "near": {
+    "triangles": 6000,
+    "atlas": 1024,
+    "materials": 1,
+    "fbx_bytes": 264044
+  },
+  "medium": {
+    "triangles": 2500,
+    "atlas": 512,
+    "materials": 1,
+    "fbx_bytes": 119276
+  },
+  "seconds": 40.95
+}

@@ -5,6 +5,8 @@ Shader "Infinity Castle/Architecture"
         _BaseMap ("Albedo", 2D) = "white" {}
         _BaseColor ("Tint", Color) = (1,1,1,1)
         _Glow ("Window Glow", Range(0,2)) = 0
+        _AtlasEmission ("Shared atlas lantern emission", Range(0,2)) = 0
+        _RailEndClearance ("Walkway end opening (metres)", Float) = 0
         _WoodMap ("Castle Timber", 2D) = "white" {}
         _PaperMap ("Shoji Fibres", 2D) = "white" {}
         _ThemeStrength ("Unified Finish", Range(0,1)) = 0
@@ -46,13 +48,15 @@ Shader "Infinity Castle/Architecture"
                 float4 _BaseMap_ST;
                 half4 _BaseColor;
                 half _Glow;
+                half _AtlasEmission;
+                float _RailEndClearance;
                 half _ThemeStrength;
                 half _FinishMode;
                 float4 _CastleAssembly;
                 float4 _CastleBuild;
             CBUFFER_END
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; float4 assembly : TEXCOORD1; float timberSize : TEXCOORD2; UNITY_VERTEX_INPUT_INSTANCE_ID };
-            struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; half3 normalWS : TEXCOORD1; float2 uv : TEXCOORD2; half fog : TEXCOORD3; float3 positionOS : TEXCOORD4; half3 normalOS : TEXCOORD5; half2 assemblyVisible : TEXCOORD6; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv : TEXCOORD0; float4 assembly : TEXCOORD1; float timberSize : TEXCOORD2; float4 rail : TEXCOORD3; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; half3 normalWS : TEXCOORD1; float2 uv : TEXCOORD2; half fog : TEXCOORD3; float3 positionOS : TEXCOORD4; half3 normalOS : TEXCOORD5; half2 assemblyVisible : TEXCOORD6; half2 rail : TEXCOORD7; };
             Varyings Vert(Attributes input)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
@@ -89,6 +93,9 @@ Shader "Infinity Castle/Architecture"
                 output.positionCS = position.positionCS; output.positionWS = position.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 float3 size = float3(length(UNITY_MATRIX_M._m00_m10_m20), length(UNITY_MATRIX_M._m01_m11_m21), length(UNITY_MATRIX_M._m02_m12_m22));
+                // Source route distances preserve a metre-sized opening at any
+                // pooled instance scale, including during timber assembly.
+                output.rail = input.rail.z > .5 ? input.rail.xy * (input.rail.w > 0 ? size.z : size.x) : half2(256,256);
                 output.positionOS = input.positionOS.xyz * size; output.normalOS = input.normalOS;
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap); output.fog = ComputeFogFactor(position.positionCS.z);
                 return output;
@@ -96,6 +103,8 @@ Shader "Infinity Castle/Architecture"
             half4 Frag(Varyings input) : SV_Target
             {
                 clip(input.assemblyVisible.x - .5);
+                if (_RailEndClearance > 0)
+                    clip(min(input.rail.x, input.rail.y) - _RailEndClearance);
                 if (_CastleStreamCenter.w > .5)
                 {
                     float distanceToPlayer = distance(input.positionWS, _CastleStreamCenter.xyz);
@@ -120,6 +129,11 @@ Shader "Infinity Castle/Architecture"
                 #endif
                 half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb * _BaseColor.rgb;
                 half emission = _Glow;
+                // Only the two dedicated lantern-paper cells emit. This adds no
+                // texture fetch, extra light, transparency, or shader variant.
+                float2 atlasCell = floor(saturate(input.uv) * 4);
+                half lanternCell = (atlasCell.x == 1 && atlasCell.y == 2) || (atlasCell.x == 3 && atlasCell.y == 0);
+                emission += lanternCell * _AtlasEmission;
                 if (_ThemeStrength > 0.5)
                 {
                     half3 axis = abs(input.normalOS);

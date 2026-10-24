@@ -1,0 +1,672 @@
+{
+  "modules": [
+    {
+      "name": "CorrectedRoom",
+      "kind": 0,
+      "minimum": {
+        "x": -3.78,
+        "y": -0.17,
+        "z": -3.305
+      },
+      "maximum": {
+        "x": 3.905,
+        "y": 4.58,
+        "z": 3.18
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 7.685,
+        "y": 6.485
+      },
+      "roofSize": {
+        "x": 7.685,
+        "y": 6.485
+      },
+      "ports": [
+        {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 3
+          },
+          "outward": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": 3.6,
+            "y": 0,
+            "z": 0
+          },
+          "outward": {
+            "x": 1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": -3.6,
+            "y": 0,
+            "z": 0
+          },
+          "outward": {
+            "x": -1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        }
+      ]
+    },
+    {
+      "name": "HallWayWithTurnFixed",
+      "kind": 1,
+      "minimum": {
+        "x": -4.18,
+        "y": -0.17,
+        "z": -4.305
+      },
+      "maximum": {
+        "x": 4.305,
+        "y": 4.58,
+        "z": 4.18
+      },
+      "floorPoint": {
+        "x": -2.4,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 8.485,
+        "y": 8.485
+      },
+      "roofSize": {
+        "x": 8.485,
+        "y": 8.485
+      },
+      "ports": [
+        {
+          "position": {
+            "x": -2.4,
+            "y": 0,
+            "z": 4
+          },
+          "outward": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": 4,
+            "y": 0,
+            "z": -2.4
+          },
+          "outward": {
+            "x": 1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        }
+      ]
+    },
+    {
+      "name": "HallWay3Way",
+      "kind": 1,
+      "minimum": {
+        "x": -6.18,
+        "y": -0.17,
+        "z": -4.305
+      },
+      "maximum": {
+        "x": 6.305,
+        "y": 4.58,
+        "z": 4.18
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 12.485,
+        "y": 8.485
+      },
+      "roofSize": {
+        "x": 12.485,
+        "y": 8.485
+      },
+      "ports": [
+        {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": 4
+          },
+          "outward": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": 6,
+            "y": 0,
+            "z": -2.4
+          },
+          "outward": {
+            "x": 1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": -6,
+            "y": 0,
+            "z": -2.4
+          },
+          "outward": {
+            "x": -1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        }
+      ]
+    },
+    {
+      "name": "DoubleStaresBase",
+      "kind": 3,
+      "minimum": {
+        "x": -4.59,
+        "y": -2.2,
+        "z": -4.09
+      },
+      "maximum": {
+        "x": 4.59,
+        "y": 0.99,
+        "z": 4.2
+      },
+      "floorPoint": {
+        "x": -4.5,
+        "y": 0,
+        "z": -0.7
+      },
+      "roofPoint": {
+        "x": -4.5,
+        "y": 0,
+        "z": -0.7
+      },
+      "floorSize": {
+        "x": 9.18,
+        "y": 8.29
+      },
+      "roofSize": {
+        "x": 9.18,
+        "y": 8.29
+      },
+      "ports": [
+        {
+          "position": {
+            "x": -4.5,
+            "y": 0,
+            "z": -0.7
+          },
+          "outward": {
+            "x": -1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        }
+      ]
+    },
+    {
+      "name": "SingleStareBase",
+      "kind": 3,
+      "minimum": {
+        "x": -3.89,
+        "y": -2.2,
+        "z": -4.09
+      },
+      "maximum": {
+        "x": 3.89,
+        "y": 0.99,
+        "z": 4.18
+      },
+      "floorPoint": {
+        "x": -0.6,
+        "y": -1.4,
+        "z": 4
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 0,
+        "z": -4
+      },
+      "floorSize": {
+        "x": 7.78,
+        "y": 8.27
+      },
+      "roofSize": {
+        "x": 7.78,
+        "y": 8.27
+      },
+      "ports": [
+        {
+          "position": {
+            "x": -0.6,
+            "y": -1.4,
+            "z": 4
+          },
+          "outward": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": 0,
+            "y": 0,
+            "z": -4
+          },
+          "outward": {
+            "x": 0,
+            "y": 0,
+            "z": -1
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": 3.8,
+            "y": 0,
+            "z": -1
+          },
+          "outward": {
+            "x": 1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        },
+        {
+          "position": {
+            "x": -3.8,
+            "y": 0,
+            "z": -1
+          },
+          "outward": {
+            "x": -1,
+            "y": 0,
+            "z": 0
+          },
+          "width": 2.4
+        }
+      ]
+    },
+    {
+      "name": "Path",
+      "kind": 0,
+      "minimum": {
+        "x": -1.24,
+        "y": -0.17,
+        "z": -5.89
+      },
+      "maximum": {
+        "x": 1.365,
+        "y": 3.7,
+        "z": 5.89
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 2.605,
+        "y": 11.78
+      },
+      "roofSize": {
+        "x": 2.605,
+        "y": 11.78
+      },
+      "ports": []
+    },
+    {
+      "name": "Stares",
+      "kind": 0,
+      "minimum": {
+        "x": -1.3,
+        "y": -0.389086,
+        "z": -2.78
+      },
+      "maximum": {
+        "x": 1.3,
+        "y": 3.09,
+        "z": 2.78
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 2.6,
+        "y": 5.56
+      },
+      "roofSize": {
+        "x": 2.6,
+        "y": 5.56
+      },
+      "ports": []
+    },
+    {
+      "name": "PackFlatStair",
+      "kind": 0,
+      "minimum": {
+        "x": -1.2,
+        "y": -0.17,
+        "z": -8.59
+      },
+      "maximum": {
+        "x": 1.2,
+        "y": 0.98,
+        "z": 8.59
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 2.4,
+        "y": 17.18
+      },
+      "roofSize": {
+        "x": 2.4,
+        "y": 17.18
+      },
+      "ports": []
+    },
+    {
+      "name": "PackSwitchbackStair",
+      "kind": 0,
+      "minimum": {
+        "x": -2.0,
+        "y": -0.387872,
+        "z": -4.18
+      },
+      "maximum": {
+        "x": 2.0,
+        "y": 6.99,
+        "z": 4.09
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 4.0,
+        "y": 8.27
+      },
+      "roofSize": {
+        "x": 4.0,
+        "y": 8.27
+      },
+      "ports": []
+    },
+    {
+      "name": "PackStairFlight",
+      "kind": 0,
+      "minimum": {
+        "x": -1.3,
+        "y": -0.389086,
+        "z": -2.78
+      },
+      "maximum": {
+        "x": 1.3,
+        "y": 3.09,
+        "z": 2.78
+      },
+      "floorPoint": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "roofPoint": {
+        "x": 0,
+        "y": 3.6,
+        "z": 0
+      },
+      "floorSize": {
+        "x": 2.6,
+        "y": 5.56
+      },
+      "roofSize": {
+        "x": 2.6,
+        "y": 5.56
+      },
+      "ports": []
+    }
+  ],
+  "statistics": [
+    {
+      "name": "CorrectedRoom",
+      "lod": 0,
+      "vertices": 1672,
+      "quads": 1280,
+      "faces": 1280,
+      "triangles": 2560,
+      "boundary_edges": 0
+    },
+    {
+      "name": "CorrectedRoom",
+      "lod": 1,
+      "vertices": 640,
+      "quads": 506,
+      "faces": 506,
+      "triangles": 1012,
+      "boundary_edges": 0
+    },
+    {
+      "name": "HallWayWithTurnFixed",
+      "lod": 0,
+      "vertices": 2412,
+      "quads": 1832,
+      "faces": 1832,
+      "triangles": 3664,
+      "boundary_edges": 0
+    },
+    {
+      "name": "HallWayWithTurnFixed",
+      "lod": 1,
+      "vertices": 748,
+      "quads": 584,
+      "faces": 584,
+      "triangles": 1168,
+      "boundary_edges": 0
+    },
+    {
+      "name": "HallWay3Way",
+      "lod": 0,
+      "vertices": 3136,
+      "quads": 2384,
+      "faces": 2384,
+      "triangles": 4768,
+      "boundary_edges": 0
+    },
+    {
+      "name": "HallWay3Way",
+      "lod": 1,
+      "vertices": 1024,
+      "quads": 800,
+      "faces": 800,
+      "triangles": 1600,
+      "boundary_edges": 0
+    },
+    {
+      "name": "DoubleStaresBase",
+      "lod": 0,
+      "vertices": 1422,
+      "quads": 1086,
+      "faces": 1086,
+      "triangles": 2172,
+      "boundary_edges": 0
+    },
+    {
+      "name": "DoubleStaresBase",
+      "lod": 1,
+      "vertices": 686,
+      "quads": 534,
+      "faces": 534,
+      "triangles": 1068,
+      "boundary_edges": 0
+    },
+    {
+      "name": "SingleStareBase",
+      "lod": 0,
+      "vertices": 908,
+      "quads": 694,
+      "faces": 694,
+      "triangles": 1388,
+      "boundary_edges": 0
+    },
+    {
+      "name": "SingleStareBase",
+      "lod": 1,
+      "vertices": 452,
+      "quads": 352,
+      "faces": 352,
+      "triangles": 704,
+      "boundary_edges": 0
+    },
+    {
+      "name": "Path",
+      "lod": 0,
+      "vertices": 374,
+      "quads": 292,
+      "faces": 292,
+      "triangles": 584,
+      "boundary_edges": 0
+    },
+    {
+      "name": "Path",
+      "lod": 1,
+      "vertices": 182,
+      "quads": 148,
+      "faces": 148,
+      "triangles": 296,
+      "boundary_edges": 0
+    },
+    {
+      "name": "Stares",
+      "lod": 0,
+      "vertices": 496,
+      "quads": 372,
+      "faces": 372,
+      "triangles": 744,
+      "boundary_edges": 0
+    },
+    {
+      "name": "Stares",
+      "lod": 1,
+      "vertices": 208,
+      "quads": 156,
+      "faces": 156,
+      "triangles": 312,
+      "boundary_edges": 0
+    },
+    {
+      "name": "PackFlatStair",
+      "lod": 0,
+      "vertices": 312,
+      "quads": 250,
+      "faces": 250,
+      "triangles": 500,
+      "boundary_edges": 0
+    },
+    {
+      "name": "PackSwitchbackStair",
+      "lod": 0,
+      "vertices": 1132,
+      "quads": 854,
+      "faces": 854,
+      "triangles": 1708,
+      "boundary_edges": 0
+    },
+    {
+      "name": "PackStairFlight",
+      "lod": 0,
+      "vertices": 496,
+      "quads": 372,
+      "faces": 372,
+      "triangles": 744,
+      "boundary_edges": 0
+    },
+    {
+      "name": "CorrectedRoom",
+      "lod": 2,
+      "vertices": 440,
+      "quads": 356,
+      "faces": 356,
+      "triangles": 712,
+      "boundary_edges": 0
+    }
+  ]
+}

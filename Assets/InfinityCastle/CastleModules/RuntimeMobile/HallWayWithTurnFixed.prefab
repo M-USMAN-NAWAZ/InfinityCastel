@@ -27,9 +27,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3980998992216977657}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.00000003774895, y: 0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: -0, y: 0, z: 0}
-  m_LocalScale: {x: 100, y: 100, z: 100}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 6017818040603562400}
@@ -41,7 +41,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3980998992216977657}
-  m_Mesh: {fileID: -3920555075548088813, guid: 2166817e65069414faccc5235f47c999, type: 3}
+  m_Mesh: {fileID: -7808232144527537285, guid: 2166817e65069414faccc5235f47c999, type: 3}
 --- !u!23 &6819708908982037655
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -108,7 +108,7 @@ MeshCollider:
   serializedVersion: 5
   m_Convex: 0
   m_CookingOptions: 30
-  m_Mesh: {fileID: -3920555075548088813, guid: 2166817e65069414faccc5235f47c999, type: 3}
+  m_Mesh: {fileID: -7808232144527537285, guid: 2166817e65069414faccc5235f47c999, type: 3}
 --- !u!1 &4051230524235101757
 GameObject:
   m_ObjectHideFlags: 0
@@ -118,6 +118,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6017818040603562400}
+  - component: {fileID: 5374574706831598423}
   m_Layer: 0
   m_Name: HallWayWithTurnFixed
   m_TagString: Untagged
@@ -141,3 +142,32 @@ Transform:
   - {fileID: 8189696705912499078}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &5374574706831598423
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4051230524235101757}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da3a4129ee39a7c4c9a8309034dcdc41, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  kind: 1
+  localBounds:
+    m_Center: {x: 0.0625, y: 2.205, z: -0.0625}
+    m_Extent: {x: 4.2425, y: 2.375, z: 4.2425}
+  floorPoint: {x: -2.4, y: 0, z: 0}
+  floorSize: {x: 8.485, y: 8.485}
+  roofPoint: {x: 0, y: 3.6, z: 0}
+  roofSize: {x: 8.485, y: 8.485}
+  ports:
+  - position: {x: -2.4, y: 0, z: 4}
+    outward: {x: 0, y: 0, z: 1}
+    width: 2.4
+  - position: {x: 4, y: 0, z: -2.4}
+    outward: {x: 1, y: 0, z: 0}
+    width: 2.4
+  requiresPassageRepair: 0
+  hasAuthoredFloors: 1

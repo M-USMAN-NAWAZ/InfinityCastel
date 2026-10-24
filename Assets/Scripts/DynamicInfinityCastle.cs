@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 [DefaultExecutionOrder(-200)]
 public partial class DynamicInfinityCastle : MonoBehaviour
 {
+    public const float PathRailEndClearance = 1.6f;
     [Header("Player and Pool Parents")]
     public Transform player;
     public Transform buildingsParent, pathsParent;
@@ -444,7 +445,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         // Preserve explicitly finished pack stairs/door panels when the room theme override is off.
         foreach (string property in new[] { "_WoodMap", "_PaperMap" })
             if (source.HasProperty(property)) material.SetTexture(property, source.GetTexture(property));
-        foreach (string property in new[] { "_ThemeStrength", "_FinishMode", "_Glow" })
+        foreach (string property in new[] { "_ThemeStrength", "_FinishMode", "_Glow", "_AtlasEmission", "_RailEndClearance" })
             if (source.HasProperty(property)) material.SetFloat(property, source.GetFloat(property));
         if (unifiedArchitectureTheme)
         {
@@ -627,7 +628,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             link.switchbackCollision.transform.SetParent(root.transform, false);
             link.switchbackCollision.AddComponent<MeshCollider>().sharedMesh = districtSwitchbackPrefab.GetComponent<MeshFilter>().sharedMesh;
             Vector3[] route = districtSwitchbackRoute.points;
-            for (int segment = 0; segment < 3; segment++)
+            // Regular rebuilt treads are already solid, low steps. The old
+            // rotated boxes shear under vertical fitting and can block entry.
+            for (int segment = 0; !districtSwitchbackRoute.hasAuthoredTreads && segment < 3; segment++)
             {
                 GameObject floor = new("Switchback walking surface " + segment);
                 floor.transform.SetParent(link.switchbackCollision.transform, false);
@@ -800,8 +803,9 @@ public partial class DynamicInfinityCastle : MonoBehaviour
                 BoxCollider rail = link.rails[side];
                 Vector3 across = Vector3.Cross(up, direction) * ((side == 0 ? -1f : 1f) * (spec.width - thickness) * .5f);
                 rail.transform.SetPositionAndRotation((start + landingStart) * .5f + across + up * (spec.railHeight * .5f), railRotation);
-                rail.size = new Vector3(thickness, normalHeight, slope.magnitude + .08f);
-                rail.gameObject.SetActive(true);
+                float railLength = slope.magnitude * Mathf.Max(0f, 1f - 2f * PathRailEndClearance / spec.run);
+                rail.size = new Vector3(thickness, normalHeight, Mathf.Max(.05f, railLength));
+                rail.gameObject.SetActive(railLength > .1f);
             }
             if (step)
             {

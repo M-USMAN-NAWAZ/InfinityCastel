@@ -24,21 +24,67 @@ public static class CastleTimberAssemblyBake
         Add(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/InfinityCastle/CastleModules/RuntimeLod/CorrectedRoom_LOD3.fbx").GetComponentInChildren<MeshFilter>().sharedMesh, "CorrectedRoom_LOD3");
         foreach (string name in new[] { "PackFlatStair", "PackSwitchbackStair", "PackStairFlight" })
             Add(AssetDatabase.LoadAssetAtPath<Mesh>("Assets/InfinityCastle/CastleModules/RuntimeMobile/" + name + ".asset"), name);
+        foreach (GameObject path in castle.pathPrefabs)
+            foreach (Renderer renderer in path.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.sharedMaterial.SetFloat("_RailEndClearance", DynamicInfinityCastle.PathRailEndClearance);
+                EditorUtility.SetDirty(renderer.sharedMaterial);
+            }
+        for (int i = 0; i < castle.architectureDistanceModels.Count; i++)
+            if (castle.architectureDistanceModels[i].name.StartsWith("Path", StringComparison.Ordinal) ||
+                castle.architectureDistanceModels[i].name.StartsWith("Stares", StringComparison.Ordinal))
+            {
+                castle.architectureDistanceMaterials[i].SetFloat("_RailEndClearance", DynamicInfinityCastle.PathRailEndClearance);
+                EditorUtility.SetDirty(castle.architectureDistanceMaterials[i]);
+            }
 
         void Add(Mesh source, string name)
         {
             // Group complete triangles into rigid sections, retaining the exact mobile triangle/texture budget.
             Vector3[] vertices = source.vertices, normals = source.normals;
             Vector2[] uv = source.uv; int[] triangles = source.triangles;
+            bool opening = name.StartsWith("Path", StringComparison.Ordinal) || name.StartsWith("Stares", StringComparison.Ordinal) ||
+                name == "PackFlatStair" || name == "PackStairFlight";
+            Vector3 low = default, high = default;
+            Vector3 axis = source.bounds.size.z >= source.bounds.size.x ? Vector3.forward : Vector3.right;
+            if (opening)
+            {
+                var probe = new GameObject("Path rail opening measurement");
+                try
+                {
+                    MeshCollider collider = probe.AddComponent<MeshCollider>(); collider.sharedMesh = source;
+                    Physics.SyncTransforms();
+                    bool found = false;
+                    float span = Vector3.Dot(source.bounds.size, axis);
+                    for (int sample = 0; sample <= 80; sample++)
+                    {
+                        Vector3 point = source.bounds.center + axis * Mathf.Lerp(-span * .5f + .12f, span * .5f - .12f, sample / 80f);
+                        point.y = source.bounds.max.y + 1f;
+                        if (!collider.Raycast(new Ray(point, Vector3.down), out RaycastHit hit, source.bounds.size.y + 2f) || hit.normal.y < .9f) continue;
+                        if (!found) { low = hit.point; found = true; }
+                        high = hit.point;
+                    }
+                    if (!found || Vector3.Dot(high-low, axis) <= 0f) throw new InvalidOperationException("Cannot measure rail openings: " + name);
+                }
+                finally { UnityEngine.Object.DestroyImmediate(probe); }
+            }
+            float run = Vector3.Dot(high-low, axis), from = Vector3.Dot(low, axis), to = Vector3.Dot(high, axis);
+            float Height(int vertex) => vertices[vertex].y - Mathf.LerpUnclamped(low.y, high.y,
+                (Vector3.Dot(vertices[vertex], axis)-from) / Mathf.Max(.0001f, run));
+            float[] fenceFlags = opening ? new float[triangles.Length/3] : null;
             var groups = new Dictionary<int, Bounds>(); int[] ids = new int[triangles.Length / 3];
             for (int i = 0; i < triangles.Length; i += 3)
             {
+                if (opening)
+                    fenceFlags[i/3] = Mathf.Max(Height(triangles[i]), Height(triangles[i+1]), Height(triangles[i+2])) >
+                        Mathf.Min(source.bounds.size.x, source.bounds.size.z) * .12f ? 1f : 0f;
                 Vector3 centre = (vertices[triangles[i]] + vertices[triangles[i+1]] + vertices[triangles[i+2]]) / 3f;
                 Vector3 unit = centre - source.bounds.min;
                 unit = new Vector3(unit.x / source.bounds.size.x, unit.y / source.bounds.size.y, unit.z / source.bounds.size.z);
                 // The supplied flight is long and narrow: group along its treads rather
                 // than spending all ten bins across two unsegmented side rails.
-                bool alongFlight = name == "PackStairFlight" || name == "PackSwitchbackStair";
+                bool alongFlight = name == "PackStairFlight" || name == "PackSwitchbackStair" ||
+                    name == "PackFlatStair" || name.StartsWith("Stares", StringComparison.Ordinal);
                 int x = Mathf.Clamp((int)((alongFlight ? unit.z : unit.x) * 10f), 0, 9),
                     z = (alongFlight ? unit.x : unit.z) < .5f ? 0 : 1, y = unit.y < .16f ? 0 : unit.y < .78f ? 1 : 2;
                 int id = x + z * 10 + y * 20; ids[i / 3] = id;
@@ -49,6 +95,7 @@ public static class CastleTimberAssemblyBake
             var positions = new Vector3[triangles.Length]; var directions = new Vector3[triangles.Length];
             var albedo = new Vector2[triangles.Length]; var data = new List<Vector4>(triangles.Length);
             var sizes = new List<Vector2>(triangles.Length);
+            var railData = opening ? new List<Vector4>(triangles.Length) : null;
             for (int i = 0; i < triangles.Length; i++)
             {
                 int sourceIndex = triangles[i], id = ids[i / 3];
@@ -56,13 +103,25 @@ public static class CastleTimberAssemblyBake
                 Vector3 pivot = groups[id].center;
                 data.Add(new Vector4(pivot.x, pivot.y, pivot.z, 1f + (id / 20) * .19f + Mathf.Repeat(id * .618034f, 1f) * .18f));
                 sizes.Add(new Vector2(source.bounds.size.magnitude, 0)); triangles[i] = i;
+                if (opening)
+                {
+                    // Only fence triangles are clipped. Keep the entire structural
+                    // floor and store source distances for scale-correct junctions.
+                    float along = Vector3.Dot(vertices[sourceIndex], axis);
+                    railData.Add(new Vector4(along-from, to-along, fenceFlags[i/3], axis.z > .5f ? 1f : -1f));
+                }
             }
             Mesh mesh = new() { name = name + "_Instanced", vertices = positions, normals = directions, uv = albedo, triangles = triangles, bounds = source.bounds };
             mesh.SetUVs(1, data); mesh.SetUVs(2, sizes);
+            if (opening) mesh.SetUVs(3, railData);
             string asset = Folder + name + "_Instanced.asset";
             Mesh saved = AssetDatabase.LoadAssetAtPath<Mesh>(asset);
             if (saved == null) { AssetDatabase.CreateAsset(mesh, asset); saved = mesh; }
             else { EditorUtility.CopySerialized(mesh, saved); UnityEngine.Object.DestroyImmediate(mesh); EditorUtility.SetDirty(saved); }
+            // Refresh the native vertex layout too: copying serialized mesh data
+            // alone can leave existing renderers using the old GPU buffer layout.
+            if (opening) saved.SetUVs(3, railData);
+            saved.UploadMeshData(false);
             castle.timberAssemblyModels.Add(new DynamicInfinityCastle.TimberAssemblyModel { source = source, fragments = saved });
         }
     }
@@ -98,8 +157,9 @@ public static class CastleTimberAssemblyBake
         {
             Check(path.GetComponent<MeshCollider>().sharedMesh.isReadable, path.name + " keeps CPU geometry for player collider cooking");
             Material material = (Material)Call("PooledMaterial", path.GetComponent<Renderer>().sharedMaterial);
-            Check(material.GetTexture("_WoodMap") != null && material.GetFloat("_ThemeStrength") > .5f,
-                path.name + " preserves its timber texture in the pooled material");
+            Check(material.GetTexture("_BaseMap") == AssetDatabase.LoadAssetAtPath<Texture2D>(CastleRetopologyBake.Atlas) &&
+                material.GetFloat("_ThemeStrength") < .5f && material.GetFloat("_AtlasEmission") > 0f,
+                path.name + " preserves the new atlas, gold fittings and lantern finish in pooled materials");
         }
         castle.player = new GameObject("Assembly safety probe").transform;
         int transforms = castle.GetComponentsInChildren<Transform>(true).Length;

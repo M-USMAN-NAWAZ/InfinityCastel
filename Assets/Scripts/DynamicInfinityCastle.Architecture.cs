@@ -185,17 +185,26 @@ public partial class DynamicInfinityCastle
             art.transform.localRotation = rotation;
             art.SetActive(true);
             var module = art.GetComponent<CastleArchitectureModule>();
-            if (module.kind == CastleArchitectureModule.ModuleKind.Room ||
-                module.kind == CastleArchitectureModule.ModuleKind.Corridor)
+            if (!module.hasAuthoredFloors && (module.kind == CastleArchitectureModule.ModuleKind.Room ||
+                module.kind == CastleArchitectureModule.ModuleKind.Corridor))
                 AddWalkableSurface(art.transform, module.floorPoint, module.floorSize);
             var part = new BuildingPart { module = module };
             part.constructionRenderers = art.GetComponentsInChildren<Renderer>(true);
             PrepareTimberRenderers(part.constructionRenderers);
-            part.floorZone = CreateBuildingZone(art.transform, "Room Gravity", module.floorPoint, module.floorSize,
+            Vector3 gravityCentre = module.floorPoint;
+            if (module.hasAuthoredFloors)
+                gravityCentre = new Vector3(module.localBounds.center.x, module.floorPoint.y, module.localBounds.center.z);
+            part.floorZone = CreateBuildingZone(art.transform, "Room Gravity", gravityCentre, module.floorSize,
                 module.kind == CastleArchitectureModule.ModuleKind.Stair ? 8f : 3f,
                 module.kind != CastleArchitectureModule.ModuleKind.Stair);
             if (module.kind == CastleArchitectureModule.ModuleKind.Room)
                 part.roofZone = CreateBuildingZone(art.transform, "Roof Gravity", module.roofPoint, module.roofSize, 3f, true);
+            if (module.hasAuthoredFloors)
+            {
+                Collider[] solid = art.GetComponentsInChildren<MeshCollider>();
+                part.floorZone.BindGeometrySurface(solid);
+                if (part.roofZone != null) part.roofZone.BindGeometrySurface(solid);
+            }
             wing.parts.Add(part);
             return wing.parts.Count - 1;
         }
@@ -300,9 +309,10 @@ public partial class DynamicInfinityCastle
             module.kind = CastleArchitectureModule.ModuleKind.Roof; module.floorSize = room.roofSize;
             module.localBounds = new Bounds(Vector3.zero, new Vector3(room.roofSize.x, .1f, room.roofSize.y));
             module.ports = room.ports;
-            AddWalkableSurface(marker.transform, Vector3.zero, room.roofSize);
-            wing.parts.Add(new BuildingPart { module = module,
-                floorZone = CreateBuildingZone(marker.transform, "Native Roof Gravity", Vector3.zero, room.roofSize, 3f, true) });
+            if (!room.hasAuthoredFloors) AddWalkableSurface(marker.transform, Vector3.zero, room.roofSize);
+            var roofZone = CreateBuildingZone(marker.transform, "Native Roof Gravity", Vector3.zero, room.roofSize, 3f, true);
+            if (room.hasAuthoredFloors) roofZone.BindGeometrySurface(room.GetComponentsInChildren<MeshCollider>());
+            wing.parts.Add(new BuildingPart { module = module, floorZone = roofZone });
         }
         void GravityRoom(int source)
         {
@@ -522,21 +532,34 @@ public partial class DynamicInfinityCastle
 
     private GameObject PrepareInnerCastleModule(GameObject source)
     {
-        if (source.GetComponent<CastleArchitectureModule>() != null) return source;
+        var authored = source.GetComponent<CastleArchitectureModule>();
+        if (authored != null && !authored.hasAuthoredFloors) return source;
         GameObject root = new(source.name + " Runtime Module");
         root.transform.SetParent(transform, false);
         GameObject art = Instantiate(source, root.transform);
         DisableAuthoredLights(art);
         EnsureSolidColliders(art);
         CastleArchitectureModule module = root.AddComponent<CastleArchitectureModule>();
-        ConfigureInnerCastleModule(module, source.name);
-        FitInnerCastleArt(root.transform, art.transform, module.localBounds);
+        if (authored == null) ConfigureInnerCastleModule(module, source.name);
+        else
+        {
+            module.kind = authored.kind; module.localBounds = authored.localBounds;
+            module.floorPoint = authored.floorPoint; module.roofPoint = authored.roofPoint;
+            module.floorSize = authored.floorSize; module.roofSize = authored.roofSize;
+            module.ports = authored.ports; module.hasAuthoredFloors = true;
+            var copiedMetadata = art.GetComponent<CastleArchitectureModule>();
+            if (Application.isPlaying) Destroy(copiedMetadata);
+            else DestroyImmediate(copiedMetadata);
+        }
+        if (!module.hasAuthoredFloors) FitInnerCastleArt(root.transform, art.transform, module.localBounds);
         foreach (GameObject distant in architectureDistanceModels)
         {
             if (!distant.name.StartsWith(source.name + "_LOD")) continue;
             GameObject lowRoot = new("Distant Architecture LOD"); lowRoot.transform.SetParent(root.transform, false);
             GameObject lowArt = Instantiate(distant, lowRoot.transform);
-            FitInnerCastleArt(lowRoot.transform, lowArt.transform, module.localBounds);
+            // All rebuilt LODs share metre-space floor/door coordinates. Fitting
+            // their smaller decorative bounds would move the openings at LOD swaps.
+            if (!module.hasAuthoredFloors) FitInnerCastleArt(lowRoot.transform, lowArt.transform, module.localBounds);
             int index = architectureDistanceModels.IndexOf(distant);
             Material material = index < architectureDistanceMaterials.Count ? architectureDistanceMaterials[index] : null;
             if (material == null) material = art.GetComponentInChildren<Renderer>().sharedMaterial;

@@ -1,0 +1,7 @@
+{
+  "model": "SingleStareBase",
+  "pieces": 48,
+  "visual_triangles": 14746,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}

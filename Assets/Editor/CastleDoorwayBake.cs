@@ -29,10 +29,22 @@ public static class CastleDoorwayBake
         var material = AssetDatabase.LoadAssetAtPath<Material>(Folder + "ClosedShoji.mat");
         if (material == null) { material = new Material(castle.architectureShader); AssetDatabase.CreateAsset(material, Folder + "ClosedShoji.mat"); }
         material.SetTexture("_BaseMap", texture); material.SetFloat("_Glow", .035f); material.enableInstancing = true; EditorUtility.SetDirty(material);
+        Texture2D atlas = AssetDatabase.LoadAssetAtPath<Texture2D>(CastleRetopologyBake.Atlas);
+        if (atlas != null)
+        {
+            material.SetTexture("_BaseMap", atlas); material.SetFloat("_ThemeStrength", 0f);
+            material.SetFloat("_AtlasEmission", 0f);
+        }
         GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
         try
         {
             Mesh mesh = Object.Instantiate(cube.GetComponent<MeshFilter>().sharedMesh); mesh.name = "Closed Shoji Panel";
+            if (atlas != null)
+            {
+                Vector2[] uv = mesh.uv;
+                for (int i = 0; i < uv.Length; i++) uv[i] = new Vector2(.008f + uv[i].x * .234f, .008f + uv[i].y * .234f);
+                mesh.uv = uv;
+            }
             // Share the room's construction clock so gates don't float before their room is assembled.
             var pivots = new List<Vector4>(); var sizes = new List<Vector2>();
             for (int i = 0; i < mesh.vertexCount; i++) { pivots.Add(new Vector4(0f, 0f, 0f, 1.12f)); sizes.Add(new Vector2(1.4f,0f)); }

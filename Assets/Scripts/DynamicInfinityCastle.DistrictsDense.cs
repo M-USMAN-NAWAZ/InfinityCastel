@@ -128,7 +128,7 @@ public partial class DynamicInfinityCastle
             {
                 GameObject sample = new("Complete Room Distance Template"); sample.transform.SetParent(denseRoot, false);
                 GameObject art = Instantiate(architectureDistrictModel, sample.transform);
-                FitInnerCastleArt(sample.transform, art.transform, spec.module.localBounds);
+                if (!spec.module.hasAuthoredFloors) FitInnerCastleArt(sample.transform, art.transform, spec.module.localBounds);
                 foreach (Renderer renderer in sample.GetComponentsInChildren<Renderer>()) renderer.sharedMaterial = architectureDistrictMaterial != null ? architectureDistrictMaterial : high[0].sharedMaterial;
                 AddDistrictDrawSources(spec.draws[2], sample.GetComponentsInChildren<Renderer>(), sample.transform);
                 sample.SetActive(false);
@@ -367,7 +367,9 @@ public partial class DynamicInfinityCastle
         {
             var rail = link.rails[side];
             rail.transform.SetPositionAndRotation((crossing.start + crossing.end) * .5f + across * (side == 0 ? -.84f : .84f) + up * .5f, slope);
-            rail.size = new Vector3(.08f, 1f, Mathf.Max(.05f, delta.magnitude - 1.8f));
+            float railLength = delta.magnitude * Mathf.Max(0f, 1f - 2f * PathRailEndClearance / Vector3.ProjectOnPlane(delta, up).magnitude);
+            rail.size = new Vector3(.08f, 1f, Mathf.Max(.05f, railLength));
+            rail.gameObject.SetActive(railLength > .1f);
         }
         link.bounds = crossing.bounds;
         link.root.GetComponent<InfiniteCastleGrid>().Configure(-up, link.root.transform.InverseTransformPoint((crossing.start + crossing.end) * .5f + up),

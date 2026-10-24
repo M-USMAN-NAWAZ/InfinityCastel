@@ -99,6 +99,7 @@ public class InfinityGravityBody : MonoBehaviour
             // A capsule pivot is not a request to cross back over the same seam.
             if (committed && Vector3.Dot(zone.gravityDirection.normalized, alignedZone.gravityDirection.normalized) < .99f) continue;
             float distance = SurfaceDistance(zone);
+            if (float.IsInfinity(distance)) continue;
             if (Vector3.Dot(zone.gravityDirection.normalized, Direction) > .99f &&
                 (sameDirection == null || zone.priority > sameDirection.priority || zone.priority == sameDirection.priority && distance < sameDistance))
             { sameDirection = zone; sameDistance = distance; }

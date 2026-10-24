@@ -1,0 +1,7 @@
+{
+  "model": "HallWay3Way",
+  "pieces": 60,
+  "visual_triangles": 19328,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}

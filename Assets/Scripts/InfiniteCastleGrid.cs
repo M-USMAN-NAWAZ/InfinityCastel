@@ -15,12 +15,28 @@ public class InfiniteCastleGrid : MonoBehaviour
     [HideInInspector] public bool cornerEntryOnly;
     private BoxCollider trigger;
     private CastleWalkableSurface walkway;
+    private Collider[] authoredGeometry;
     private readonly Dictionary<InfinityGravityBody, HashSet<Collider>> occupants = new();
     public Vector3 SurfacePoint => transform.position;
     internal void BindSurface(CastleWalkableSurface surface) => walkway = surface;
+    internal void BindGeometrySurface(Collider[] geometry) => authoredGeometry = geometry;
     public float DistanceToSurface(Vector3 point)
     {
         if (trigger == null) return float.PositiveInfinity;
+        if (authoredGeometry != null)
+        {
+            // A concave L/T footprint is not its rectangular trigger. Only a real
+            // tread, floor or roof can attract the player into this gravity frame.
+            Vector3 up = -gravityDirection.normalized;
+            Ray ray = new(point + up * 1.1f, -up);
+            float length = transform.TransformVector(Vector3.up * trigger.size.y).magnitude + 2.2f;
+            float supportDistance = float.PositiveInfinity;
+            foreach (Collider collider in authoredGeometry)
+                if (collider != null && collider.enabled && collider.gameObject.activeInHierarchy &&
+                    collider.Raycast(ray, out RaycastHit hit, length) && Vector3.Dot(hit.normal, up) > .85f)
+                    supportDistance = Mathf.Min(supportDistance, Vector3.Distance(point, hit.point));
+            return supportDistance;
+        }
         if (surfaceBound && walkway != null) return walkway.DistanceToSurface(point);
         Vector3 local = transform.InverseTransformPoint(point);
         Vector3 edge = trigger.size * 0.5f;

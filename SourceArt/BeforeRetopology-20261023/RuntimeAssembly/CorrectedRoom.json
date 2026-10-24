@@ -1,0 +1,7 @@
+{
+  "model": "CorrectedRoom",
+  "pieces": 60,
+  "visual_triangles": 17786,
+  "collision_triangles": 6000,
+  "textures": "Existing mobile atlas; UV0 preserved"
+}

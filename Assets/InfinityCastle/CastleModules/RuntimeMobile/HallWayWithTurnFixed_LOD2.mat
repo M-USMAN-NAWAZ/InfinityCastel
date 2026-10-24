@@ -24,7 +24,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 8fbd1f16f7f4d3a4799c68ead6471928, type: 3}
+        m_Texture: {fileID: 2800000, guid: ff0c9eef14a8cef4388f1369a1d793cb, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _PaperMap:
@@ -37,8 +37,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _AtlasEmission: 0.65
     - _FinishMode: 0
     - _Glow: 0
+    - _RailEndClearance: 0
     - _ThemeStrength: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}

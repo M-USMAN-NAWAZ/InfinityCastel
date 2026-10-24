@@ -1,4 +1,4 @@
-param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model')][string]$Mode = 'Test',
+param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model', 'Retopology', 'Junctions', 'Skybox')][string]$Mode = 'Test',
     [ValidateSet('Default','Vulkan','OpenGLCore')][string]$GraphicsAPI = 'Default')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -18,17 +18,27 @@ if ($Mode -in @('Player', 'AndroidBuild')) { $method = "InfinityCastleBuildValid
 if ($Mode -eq 'Assembly') { $method = 'CastleTimberAssemblyBake.Assembly' }
 if ($Mode -eq 'TrainingBuild') { $method = 'InfinityCastleLearningTools.BuildTraining' }
 if ($Mode -eq 'Model') { $method = 'InfinityCastleLearningTools.ValidateModel' }
+if ($Mode -eq 'Retopology') { $method = 'CastleRetopologyBake.Validate' }
+if ($Mode -eq 'Junctions') { $method = 'CastlePathJunctionValidation.Junctions' }
+if ($Mode -eq 'Skybox') { $method = 'CastleBackgroundValidation.Run' }
 $arguments = @('-batchmode', '-projectPath', ('"' + $project + '"'), '-executeMethod', $method, '-logFile', ('"' + $log + '"'))
 if ($GraphicsAPI -eq 'Vulkan') { $arguments += '-force-vulkan' }
 if ($GraphicsAPI -eq 'OpenGLCore') { $arguments += '-force-glcore' }
 if ($Mode -in @('Player', 'TrainingBuild', 'Model')) { $arguments += @('-buildTarget', 'Win64') }
 if ($Mode -eq 'AndroidBuild') { $arguments += @('-buildTarget', 'Android') }
-if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly')) { $arguments += @('-nographics', '-quit') }
-if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly')) { $arguments += '-quit' }
+if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox')) { $arguments += @('-nographics', '-quit') }
+if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox')) { $arguments += '-quit' }
 $process = Start-Process 'D:/for unity/6000.0.51f1/Editor/Unity.exe' -WindowStyle Hidden -PassThru -ArgumentList $arguments
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "Architecture $Mode failed. See $log" }
 if ($Mode -in @('TrainingBuild', 'Model')) { exit 0 }
+if ($Mode -eq 'Skybox') {
+    foreach ($file in @('Assets/Images/CastleFromGameModels.png', 'Assets/Images/CastleFromGameModels.png.meta', 'Assets/Mat/MyMat/InfintyCastelSkyBox.mat')) {
+        Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file"
+    }
+    Get-Content -LiteralPath "$root/Temp/castle-background-tests.txt"
+    exit 0
+}
 if ($Mode -eq 'Exterior') {
     & robocopy "$project/Assets/InfinityCastle/MobileArchitecture" "$root/Assets/InfinityCastle/MobileArchitecture" /E /NFL /NDL /NJH /NJS /NP | Out-Null
     if ($LASTEXITCODE -ge 8) { throw 'Exterior prefab copy failed.' }
@@ -55,6 +65,11 @@ foreach ($file in @('Assets/Scripts/DynamicInfinityCastle.Architecture.cs.meta',
 & robocopy "$project/Assets/InfinityCastle/CastleModules/RuntimeAssembly" "$root/Assets/InfinityCastle/CastleModules/RuntimeAssembly" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { throw 'Timber assembly asset copy failed.' }
 foreach ($file in @('Assets/InfinityCastle/CastleModules/RuntimeAssembly.meta', 'Assets/Scripts/DynamicInfinityCastle.Assembly.cs.meta', 'Assets/Scripts/DynamicInfinityCastle.Doors.cs.meta', 'Assets/Scripts/CastleStairRoute.cs.meta', 'Assets/Editor/CastleTimberAssemblyBake.cs.meta', 'Assets/Editor/CastleDoorwayBake.cs.meta', 'Assets/Editor/CastlePackStairsBake.cs.meta')) {
+    if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }
+}
+& robocopy "$project/Assets/InfinityCastle/CastleModules/Retopology" "$root/Assets/InfinityCastle/CastleModules/Retopology" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+if ($LASTEXITCODE -ge 8) { throw 'Retopology atlas and metadata copy failed.' }
+foreach ($file in @('Assets/InfinityCastle/CastleModules/Retopology.meta', 'Assets/Editor/CastleRetopologyBake.cs.meta', 'Assets/Editor/CastlePathJunctionValidation.cs.meta')) {
     if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }
 }
 if ($Mode -eq 'Test') { Get-Content -LiteralPath "$root/Temp/building-volume-tests.txt" }

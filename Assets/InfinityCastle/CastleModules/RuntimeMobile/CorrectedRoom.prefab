@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2475481173847290802}
+  - component: {fileID: 448607378618170039}
   m_Layer: 0
   m_Name: CorrectedRoom
   m_TagString: Untagged
@@ -32,6 +33,38 @@ Transform:
   - {fileID: 5943441796239571212}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &448607378618170039
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5513482147443913175}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da3a4129ee39a7c4c9a8309034dcdc41, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  kind: 0
+  localBounds:
+    m_Center: {x: 0.0625, y: 2.205, z: -0.0625}
+    m_Extent: {x: 3.8425, y: 2.375, z: 3.2425}
+  floorPoint: {x: 0, y: 0, z: 0}
+  floorSize: {x: 7.685, y: 6.485}
+  roofPoint: {x: 0, y: 3.6, z: 0}
+  roofSize: {x: 7.685, y: 6.485}
+  ports:
+  - position: {x: 0, y: 0, z: 3}
+    outward: {x: 0, y: 0, z: 1}
+    width: 2.4
+  - position: {x: 3.6, y: 0, z: 0}
+    outward: {x: 1, y: 0, z: 0}
+    width: 2.4
+  - position: {x: -3.6, y: 0, z: 0}
+    outward: {x: -1, y: 0, z: 0}
+    width: 2.4
+  requiresPassageRepair: 0
+  hasAuthoredFloors: 1
 --- !u!1 &6742483680452598723
 GameObject:
   m_ObjectHideFlags: 0
@@ -59,9 +92,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6742483680452598723}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.00000003774895, y: 0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: -0, y: 0, z: 0}
-  m_LocalScale: {x: 100, y: 100, z: 100}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 2475481173847290802}
@@ -73,7 +106,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6742483680452598723}
-  m_Mesh: {fileID: -3920555075548088813, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}
+  m_Mesh: {fileID: -6723317488917183137, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}
 --- !u!23 &7359432889576319273
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -140,4 +173,4 @@ MeshCollider:
   serializedVersion: 5
   m_Convex: 0
   m_CookingOptions: 30
-  m_Mesh: {fileID: -3920555075548088813, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}
+  m_Mesh: {fileID: -6723317488917183137, guid: e99ef14d6ea645d42aa1f79b8e585c99, type: 3}

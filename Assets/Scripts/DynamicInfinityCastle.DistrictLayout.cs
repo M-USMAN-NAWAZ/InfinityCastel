@@ -182,6 +182,9 @@ public partial class DynamicInfinityCastle
             collider.transform.localScale = local.lossyScale; collider.sharedMesh = spec.geometry[i].sharedMesh;
         }
         body.floor.center = spec.module.floorPoint + Vector3.down * .06f;
+        // Clean L/T floors already have exact mesh collision. A rectangular repair
+        // box would create invisible floors across the missing corners.
+        body.floor.enabled = body.roof.enabled = !spec.module.hasAuthoredFloors;
         body.floor.size = new Vector3(spec.module.floorSize.x - .16f, .12f, spec.module.floorSize.y - .16f);
         body.roof.center = spec.module.roofPoint + Vector3.down * .06f;
         body.roof.size = new Vector3(spec.module.roofSize.x, .12f, spec.module.roofSize.y);
@@ -197,10 +200,13 @@ public partial class DynamicInfinityCastle
         for (int i = 0; i < 2; i++)
         {
             Vector3 surface = i == 0 ? spec.module.floorPoint : spec.module.roofPoint;
+            if (spec.module.hasAuthoredFloors)
+                surface = new Vector3(spec.module.localBounds.center.x, surface.y, spec.module.localBounds.center.z);
             Vector2 size = i == 0 ? spec.module.floorSize : spec.module.roofSize;
             var zone = body.zones[i]; zone.transform.localPosition = surface;
             zone.Configure(-(room.rotation * Vector3.up), Vector3.up * 1.15f,
                 new Vector3(size.x, 4f, size.y), 3, true, true);
+            zone.BindGeometrySurface(spec.module.hasAuthoredFloors ? body.geometry : null);
             zone.enabled = enableGravityZones;
         }
         body.piece.SetPooledGeometryBounds(spec.module.localBounds);

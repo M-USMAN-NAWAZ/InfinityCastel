@@ -1,0 +1,164 @@
+[
+  {
+    "name": "CorrectedRoom",
+    "lod": 0,
+    "vertices": 1672,
+    "quads": 1280,
+    "faces": 1280,
+    "triangles": 2560,
+    "boundary_edges": 0
+  },
+  {
+    "name": "CorrectedRoom",
+    "lod": 1,
+    "vertices": 640,
+    "quads": 506,
+    "faces": 506,
+    "triangles": 1012,
+    "boundary_edges": 0
+  },
+  {
+    "name": "HallWayWithTurnFixed",
+    "lod": 0,
+    "vertices": 2412,
+    "quads": 1832,
+    "faces": 1832,
+    "triangles": 3664,
+    "boundary_edges": 0
+  },
+  {
+    "name": "HallWayWithTurnFixed",
+    "lod": 1,
+    "vertices": 748,
+    "quads": 584,
+    "faces": 584,
+    "triangles": 1168,
+    "boundary_edges": 0
+  },
+  {
+    "name": "HallWay3Way",
+    "lod": 0,
+    "vertices": 3136,
+    "quads": 2384,
+    "faces": 2384,
+    "triangles": 4768,
+    "boundary_edges": 0
+  },
+  {
+    "name": "HallWay3Way",
+    "lod": 1,
+    "vertices": 1024,
+    "quads": 800,
+    "faces": 800,
+    "triangles": 1600,
+    "boundary_edges": 0
+  },
+  {
+    "name": "DoubleStaresBase",
+    "lod": 0,
+    "vertices": 1422,
+    "quads": 1086,
+    "faces": 1086,
+    "triangles": 2172,
+    "boundary_edges": 0
+  },
+  {
+    "name": "DoubleStaresBase",
+    "lod": 1,
+    "vertices": 686,
+    "quads": 534,
+    "faces": 534,
+    "triangles": 1068,
+    "boundary_edges": 0
+  },
+  {
+    "name": "SingleStareBase",
+    "lod": 0,
+    "vertices": 908,
+    "quads": 694,
+    "faces": 694,
+    "triangles": 1388,
+    "boundary_edges": 0
+  },
+  {
+    "name": "SingleStareBase",
+    "lod": 1,
+    "vertices": 452,
+    "quads": 352,
+    "faces": 352,
+    "triangles": 704,
+    "boundary_edges": 0
+  },
+  {
+    "name": "Path",
+    "lod": 0,
+    "vertices": 374,
+    "quads": 292,
+    "faces": 292,
+    "triangles": 584,
+    "boundary_edges": 0
+  },
+  {
+    "name": "Path",
+    "lod": 1,
+    "vertices": 182,
+    "quads": 148,
+    "faces": 148,
+    "triangles": 296,
+    "boundary_edges": 0
+  },
+  {
+    "name": "Stares",
+    "lod": 0,
+    "vertices": 496,
+    "quads": 372,
+    "faces": 372,
+    "triangles": 744,
+    "boundary_edges": 0
+  },
+  {
+    "name": "Stares",
+    "lod": 1,
+    "vertices": 208,
+    "quads": 156,
+    "faces": 156,
+    "triangles": 312,
+    "boundary_edges": 0
+  },
+  {
+    "name": "PackFlatStair",
+    "lod": 0,
+    "vertices": 312,
+    "quads": 250,
+    "faces": 250,
+    "triangles": 500,
+    "boundary_edges": 0
+  },
+  {
+    "name": "PackSwitchbackStair",
+    "lod": 0,
+    "vertices": 1132,
+    "quads": 854,
+    "faces": 854,
+    "triangles": 1708,
+    "boundary_edges": 0
+  },
+  {
+    "name": "PackStairFlight",
+    "lod": 0,
+    "vertices": 496,
+    "quads": 372,
+    "faces": 372,
+    "triangles": 744,
+    "boundary_edges": 0
+  },
+  {
+    "name": "CorrectedRoom",
+    "lod": 2,
+    "vertices": 440,
+    "quads": 356,
+    "faces": 356,
+    "triangles": 712,
+    "boundary_edges": 0
+  }
+]
