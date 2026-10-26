@@ -1,0 +1,164 @@
+{
+  "Tanjiro": {
+    "bounds": [
+      [
+        -0.5149919986724854,
+        -0.1517309993505478,
+        -1.0787593041072796e-08
+      ],
+      [
+        0.5163329839706421,
+        0.14288608729839325,
+        1.0932179689407349
+      ]
+    ],
+    "objects": [
+      {
+        "name": "node_0",
+        "type": "MESH",
+        "parent": null,
+        "location": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          1.570796251296997,
+          -0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "vertices": 24971,
+        "triangles": 49974,
+        "groups": [],
+        "modifiers": [],
+        "materials": [
+          "Material"
+        ]
+      }
+    ],
+    "images": [
+      {
+        "name": "texture_pbr_20250901.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901.png",
+        "packed": true
+      },
+      {
+        "name": "texture_pbr_20250901_metallic.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901_metallic.png",
+        "packed": true
+      },
+      {
+        "name": "texture_pbr_20250901_normal.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901_normal.png",
+        "packed": true
+      },
+      {
+        "name": "texture_pbr_20250901_roughness.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901_roughness.png",
+        "packed": true
+      }
+    ]
+  },
+  "Yoriichi": {
+    "bounds": [
+      [
+        -0.4454280138015747,
+        -0.17859899997711182,
+        -1.2303816632197595e-08
+      ],
+      [
+        0.4413680136203766,
+        0.16296908259391785,
+        1.1228899955749512
+      ]
+    ],
+    "objects": [
+      {
+        "name": "node_0",
+        "type": "MESH",
+        "parent": null,
+        "location": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          1.570796251296997,
+          -0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "vertices": 24862,
+        "triangles": 49952,
+        "groups": [],
+        "modifiers": [],
+        "materials": [
+          "Material"
+        ]
+      }
+    ],
+    "images": [
+      {
+        "name": "texture_pbr_20250901.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901.png",
+        "packed": true
+      },
+      {
+        "name": "texture_pbr_20250901_metallic.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901_metallic.png",
+        "packed": true
+      },
+      {
+        "name": "texture_pbr_20250901_normal.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901_normal.png",
+        "packed": true
+      },
+      {
+        "name": "texture_pbr_20250901_roughness.png",
+        "size": [
+          4096,
+          4096
+        ],
+        "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Characters\\Originals\\output.fbm\\texture_pbr_20250901_roughness.png",
+        "packed": true
+      }
+    ]
+  }
+}

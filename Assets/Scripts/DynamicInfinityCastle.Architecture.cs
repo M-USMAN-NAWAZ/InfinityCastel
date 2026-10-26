@@ -1069,7 +1069,6 @@ public partial class DynamicInfinityCastle
         foreach (BuildingWing wing in buildingWings)
         {
             if (!wing.active || wing.group != candidate.group) continue;
-            if (IsUltraJumpTarget(wing)) return false;
             if (wing.piece.IsMoving || wing == buildingLanding) return false;
             if (buildingMotionClock < wing.motionRestUntil && buildingMotionSerial - wing.lastMotion < 3) return false;
             movingWingGroup.Add(wing); riding |= IsBuildingSupport(wing);
@@ -1225,7 +1224,7 @@ public partial class DynamicInfinityCastle
             float farthest = 58f * 58f;
             foreach (BuildingWing wing in buildingWings)
             {
-                if (!wing.active || wing.serial == 0 || wing.streamingLayer || IsBuildingSupport(wing) || IsUltraJumpTarget(wing)) continue;
+                if (!wing.active || wing.serial == 0 || wing.streamingLayer || IsBuildingSupport(wing)) continue;
                 float distance = wing.bounds.SqrDistance(player.position);
                 if (wing.piece.IsMoving && distance < (CastleVisibleRadius + 8f) * (CastleVisibleRadius + 8f)) continue;
                 if (distance <= farthest || !CanRecycleBuildingWing(wing)) continue;

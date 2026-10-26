@@ -27,18 +27,20 @@ fog settings and the user's skybox are preserved.
 
 ## Ultra Jump and Gravity Transfers
 
-Aim at a reachable rooftop and press **Q**, **Shift+Space**, or the gamepad's
-north face button. Android has a separate **Ultra Jump** touch button. Regular
-Space remains the ordinary jump. Targeted jumps reach roofs up to 85 metres away
-when their flight path is clear. If no aimed landing is clear, an untargeted
-forward jump uses an 18-metre arc and 26 m/s forward launch.
+Press **Q**, **Shift+Space**, or the gamepad's north face button for a free
+super jump. Android uses the existing **SUPER JUMP** touch button. Move in any
+camera-relative direction with the keyboard or stick, including steering,
+reversing, and braking while airborne. With no movement input, jump straight up.
+There is no roof targeting or chosen landing point. Regular Space remains the
+ordinary jump. The current 75 percent setting gives a 13.5-metre rise and up to
+19.5 m/s lateral speed; diagonal and partial analog input are normalized.
 
 The starting building includes five separated native rooms: an inverted room
 overhead and rooms facing inward from four sides. Their roof collision and
 gravity fields are real. Approach corridors are kept clear during generation.
-During a targeted jump, gravity changes halfway through flight; momentum remains
-in world space, and the camera eases into the new orientation. Landing releases
-the temporary flight override back to the building's ordinary gravity field.
+Gravity changes only when entering an actual castle gravity field, not halfway
+through a planned flight. Momentum remains in world space and the camera eases
+into the new orientation. Capsule sweeps handle walls, ceilings and real landings.
 There is no flight teleport, flight-only room instantiation or enclosing shell.
 
 Gravity seams use the capsule's real centre, not an orientation-dependent guessed
@@ -124,16 +126,17 @@ identities after travel along all three axes. It writes screenshots and measurem
 under `Temp`. The open-volume diagnostic disables fog only while taking that image.
 Visible skybox gaps are intentional; zero-background coverage is no longer a goal.
 
-`-Mode Traversal` checks actual jumps from the starting roof to all five gravity
-rooms and back at 30/60 Hz and fluctuating frame times. It checks supported
-landings, continuous flight, smooth camera rotation, real keyboard/sprint/touch
-input paths, gamepad bindings, overlap clearance and unchanged pool size.
-It also crosses an actual native roof/side-room seam in both directions and holds
+`-Mode FreeJump` checks the real Tanjiro controller's vertical/backward/diagonal
+launches, mid-air turning, reversing, braking, analog speed, camera-relative
+steering, wall/ceiling collision, real gravity-field transfers, landing and
+unchanged normal jumps in six gravity frames at 30/60 Hz and fluctuating timings.
+It runs without generating a castle or modifying saved assets.
+`-Mode Traversal` checks real keyboard/sprint/touch input paths, gamepad bindings,
+overlap clearance and unchanged pool size. It crosses an actual native roof/side-room seam in both directions and holds
 the player still at the corner to detect idle gravity oscillation.
-Super jump now applies `UltraJumpPower = 0.75` to range, forward speed and height
-(63.75 m, 19.5 m/s and 13.5 m with the original base settings). Targeted gravity
-transfers still solve their complete collision-checked trajectory; launch velocity
-is not scaled after solving. The rounded SUPER JUMP control sits above normal
+Super jump applies `UltraJumpPower = 0.75` to lateral speed and height
+(19.5 m/s and 13.5 m with the original base settings). There is no target-range
+setting, landing solver or timer-driven gravity override. The rounded SUPER JUMP control sits above normal
 jump, and a camera swipe retains ownership when crossing a button.
 
 The ML director still chooses the high-level plan. Movement shuffles eligible

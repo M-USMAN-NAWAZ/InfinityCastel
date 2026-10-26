@@ -364,7 +364,7 @@ public partial class DynamicInfinityCastle
             float farthest = 58f * 58f;
             foreach (BuildingWing wing in buildingWings)
             {
-                if (!wing.active || wing.streamingLayer || wing.serial >= buildingWings.Count - ArchitectureLayerReserveCount || wing.piece.IsMoving || IsBuildingSupport(wing) || IsUltraJumpTarget(wing)) continue;
+                if (!wing.active || wing.streamingLayer || wing.serial >= buildingWings.Count - ArchitectureLayerReserveCount || wing.piece.IsMoving || IsBuildingSupport(wing)) continue;
                 int degree = 0;
                 foreach (BuildingJoin join in buildingJoins) if (join.a == wing || join.b == wing) degree++;
                 float distance = (wing.piece.WorldBounds.ClosestPoint(player.position) - player.position).sqrMagnitude;
@@ -398,7 +398,7 @@ public partial class DynamicInfinityCastle
             {
                 float distance = wing.bounds.SqrDistance(player.position);
                 wing.piece.SetRendering(distance < (CastleVisibleRadius + 8f) * (CastleVisibleRadius + 8f));
-                if (mobileBudget) SetBuildingPhysics(wing, distance < 90f * 90f || wing.piece.IsMoving || IsUltraJumpTarget(wing));
+                if (mobileBudget) SetBuildingPhysics(wing, distance < 90f * 90f || wing.piece.IsMoving);
             }
     }
 

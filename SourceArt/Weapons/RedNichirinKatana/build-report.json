@@ -1,0 +1,26 @@
+{
+  "length_metres": 1.05,
+  "triangles": 8375,
+  "material_slots": 1,
+  "grip_pivot": true,
+  "original_preserved": true,
+  "white_crossed_wrap": true,
+  "maps": {
+    "Albedo": [
+      2048,
+      2048
+    ],
+    "Normal": [
+      1024,
+      1024
+    ],
+    "MetallicSmoothness": [
+      1024,
+      1024
+    ],
+    "Emission": [
+      1024,
+      1024
+    ]
+  }
+}

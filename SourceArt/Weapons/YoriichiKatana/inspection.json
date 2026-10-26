@@ -1,0 +1,215 @@
+{
+  "meshes": [
+    {
+      "name": "node_0",
+      "vertices": 25002,
+      "triangles": 50000,
+      "minimum": [
+        -0.35931798815727234,
+        -0.0660959929227829,
+        6.190827711582969e-11
+      ],
+      "maximum": [
+        0.837440013885498,
+        0.06624900549650192,
+        0.13355299830436707
+      ],
+      "uv": [
+        "UVMap"
+      ],
+      "materials": [
+        "Material"
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "name": "Material",
+      "nodes": [
+        {
+          "name": "Principled BSDF",
+          "type": "BSDF_PRINCIPLED",
+          "image": null,
+          "inputs": {
+            "Base Color": [
+              0.800000011920929,
+              0.800000011920929,
+              0.800000011920929,
+              1.0
+            ],
+            "Metallic": 0.0,
+            "Roughness": 1.0,
+            "IOR": 1.5,
+            "Alpha": 1.0,
+            "Weight": 0.0,
+            "Diffuse Roughness": 0.0,
+            "Subsurface Weight": 0.0,
+            "Subsurface Scale": 0.05000000074505806,
+            "Subsurface IOR": 1.399999976158142,
+            "Subsurface Anisotropy": 0.0,
+            "Specular IOR Level": 1.0,
+            "Specular Tint": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "Anisotropic": 0.0,
+            "Anisotropic Rotation": 0.0,
+            "Transmission Weight": 0.0,
+            "Coat Weight": 0.0,
+            "Coat Roughness": 0.029999999329447746,
+            "Coat IOR": 1.5,
+            "Coat Tint": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "Sheen Weight": 0.0,
+            "Sheen Roughness": 0.5,
+            "Sheen Tint": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "Emission Color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "Emission Strength": 0.0,
+            "Thin Film Thickness": 0.0,
+            "Thin Film IOR": 1.3300000429153442
+          },
+          "links": [
+            [
+              "Image Texture",
+              "Color",
+              "Base Color"
+            ],
+            [
+              "Image Texture.003",
+              "Color",
+              "Metallic"
+            ],
+            [
+              "Image Texture.002",
+              "Color",
+              "Roughness"
+            ],
+            [
+              "Normal Map",
+              "Normal",
+              "Normal"
+            ]
+          ]
+        },
+        {
+          "name": "Material Output",
+          "type": "OUTPUT_MATERIAL",
+          "image": null,
+          "inputs": {
+            "Thickness": 0.0
+          },
+          "links": [
+            [
+              "Principled BSDF",
+              "BSDF",
+              "Surface"
+            ]
+          ]
+        },
+        {
+          "name": "Normal Map",
+          "type": "NORMAL_MAP",
+          "image": null,
+          "inputs": {
+            "Strength": 1.0,
+            "Color": [
+              0.5,
+              0.5,
+              1.0,
+              1.0
+            ]
+          },
+          "links": [
+            [
+              "Image Texture.001",
+              "Color",
+              "Color"
+            ]
+          ]
+        },
+        {
+          "name": "Image Texture",
+          "type": "TEX_IMAGE",
+          "image": "texture_pbr_20250901.png",
+          "inputs": {},
+          "links": []
+        },
+        {
+          "name": "Image Texture.001",
+          "type": "TEX_IMAGE",
+          "image": "texture_pbr_20250901_normal.png",
+          "inputs": {},
+          "links": []
+        },
+        {
+          "name": "Image Texture.002",
+          "type": "TEX_IMAGE",
+          "image": "texture_pbr_20250901_roughness.png",
+          "inputs": {},
+          "links": []
+        },
+        {
+          "name": "Image Texture.003",
+          "type": "TEX_IMAGE",
+          "image": "texture_pbr_20250901_metallic.png",
+          "inputs": {},
+          "links": []
+        }
+      ]
+    }
+  ],
+  "images": [
+    {
+      "name": "texture_pbr_20250901.png",
+      "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Weapons\\YoriichiKatana\\Original\\output.fbm\\texture_pbr_20250901.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_pbr_20250901_metallic.png",
+      "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Weapons\\YoriichiKatana\\Original\\output.fbm\\texture_pbr_20250901_metallic.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_pbr_20250901_normal.png",
+      "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Weapons\\YoriichiKatana\\Original\\output.fbm\\texture_pbr_20250901_normal.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "texture_pbr_20250901_roughness.png",
+      "path": "D:\\USMAN'S_WORKSPSCE\\InfinityCastel\\SourceArt\\Weapons\\YoriichiKatana\\Original\\output.fbm\\texture_pbr_20250901_roughness.png",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    }
+  ]
+}

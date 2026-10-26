@@ -44,16 +44,11 @@ namespace StarterAssets
         [Header("Castle Ultra Jump")]
         [Min(1f)] public float UltraJumpHeight = 18f;
         [Min(1f)] public float UltraJumpSpeed = 26f;
-        [Min(10f)] public float UltraJumpRange = 85f;
         [Range(.1f, 1f)] public float UltraJumpPower = .75f;
         public float EffectiveUltraJumpSpeed => UltraJumpSpeed * UltraJumpPower;
         public float EffectiveUltraJumpHeight => UltraJumpHeight * UltraJumpPower;
-        public float EffectiveUltraJumpRange => UltraJumpRange * UltraJumpPower;
-        [System.NonSerialized] public DynamicInfinityCastle Castle;
         public bool IsUltraJumping { get; private set; }
-        private Vector3 ultraVelocity, ultraStartUp, ultraLandingUp;
-        private float ultraElapsed, ultraDuration;
-        private bool ultraTargeted;
+        private Vector3 ultraVelocity;
         private StarterAssetsInputs input;
         private InfinityGravityBody gravity;
         private InfinityCharacterMotor motor;
@@ -95,7 +90,7 @@ namespace StarterAssets
             motor = GetComponent<InfinityCharacterMotor>();
             if (motor == null) motor = gameObject.AddComponent<InfinityCharacterMotor>();
             motor.Initialize(GetComponent<CharacterController>());
-            animator = GetComponent<Animator>();
+            animator = System.Array.Find(GetComponentsInChildren<Animator>(), candidate => candidate.isActiveAndEnabled);
             if (animator != null)
             {
                 movementAudio = GetComponent<AudioSource>();
@@ -130,15 +125,7 @@ namespace StarterAssets
         {
             Initialize();
             if (dt <= 0f) return;
-            float untilGravityTurn = ultraDuration * .5f - ultraElapsed;
-            if (IsUltraJumping && ultraTargeted && untilGravityTurn > .0001f && dt > untilGravityTurn + .0001f)
-            {
-                // Integrate both gravity phases exactly even when an Android frame straddles the turn.
-                Simulate(untilGravityTurn); Simulate(dt - untilGravityTurn); return;
-            }
             if (gravity == null) gravity = GetComponent<InfinityGravityBody>();
-            if (IsUltraJumping && ultraTargeted && gravity != null)
-                gravity.SetAirborneGravity(-(ultraElapsed >= ultraDuration * .5f - .0001f ? ultraLandingUp : ultraStartUp));
             if (gravity != null) gravity.ResolveGravity();
             Vector3 targetUp = gravity != null ? gravity.Up : UseExternalGravity ? -ExternalGravityDirection.normalized : Vector3.up;
             float acceleration = gravity != null ? gravity.Strength : Mathf.Abs(Gravity);
@@ -172,17 +159,27 @@ namespace StarterAssets
             motor.Depenetrate();
             if (IsUltraJumping) verticalSpeed = Vector3.Dot(ultraVelocity, targetUp);
             Grounded = verticalSpeed <= 0.1f && motor.CheckGround(targetUp, GroundLayers);
-            if (IsUltraJumping && Grounded && ultraElapsed > .1f) FinishUltraJump();
+            if (IsUltraJumping && Grounded) FinishUltraJump();
             groundedTime = Grounded ? CoyoteTime : Mathf.Max(0f, groundedTime - dt);
             jumpCooldown = Mathf.Max(0f, jumpCooldown - dt); jumpBufferTime = Mathf.Max(0f, jumpBufferTime - dt);
+            Vector2 move = Vector2.ClampMagnitude(input.move, 1f);
+            float magnitude = input.analogMovement ? move.magnitude : move.sqrMagnitude > 0f ? 1f : 0f;
+            Vector3 viewForward = MovementForward;
+            Vector3 viewRight = Vector3.Cross(targetUp, viewForward).normalized;
+            Vector3 direction = viewForward * move.y + viewRight * move.x;
+            if (direction.sqrMagnitude > .0001f) direction.Normalize();
             if (input.ultraJump || input.jump && input.sprint)
             {
                 input.ultraJump = false; input.jump = false;
                 if (!IsUltraJumping && (Grounded || groundedTime > 0f) && jumpCooldown <= 0f)
                 {
-                    bool launched = Castle != null && Castle.TryUltraJump(cameraTransform != null ? cameraTransform.forward : MovementForward);
-                    if (!launched) LaunchUltraJump(MovementForward * EffectiveUltraJumpSpeed + targetUp * Mathf.Sqrt(2f * acceleration * EffectiveUltraJumpHeight),
-                        targetUp, 4f, false);
+                    // A stronger normal jump: no roof selection, landing point,
+                    // timed gravity turn, or forced forward motion at rest.
+                    IsUltraJumping = true;
+                    verticalSpeed = Mathf.Sqrt(2f * acceleration * EffectiveUltraJumpHeight);
+                    ultraVelocity = direction * (EffectiveUltraJumpSpeed * magnitude) + targetUp * verticalSpeed;
+                    groundedTime = jumpBufferTime = 0f; jumpCooldown = .25f;
+                    Grounded = false; jumping = true; motor.ClearSupport();
                 }
             }
             else if (input.jump) { jumpBufferTime = JumpBuffer; input.jump = false; }
@@ -195,31 +192,33 @@ namespace StarterAssets
                 jumpCooldown = Mathf.Max(0.05f, JumpTimeout); Grounded = false; jumping = true;
             }
             if (!IsUltraJumping) verticalSpeed = Mathf.Max(-45f, verticalSpeed - acceleration * dt);
-            Vector2 move = Vector2.ClampMagnitude(input.move, 1f);
-            float magnitude = input.analogMovement ? move.magnitude : move.sqrMagnitude > 0f ? 1f : 0f;
-            speed = Mathf.MoveTowards(speed, (input.sprint ? SprintSpeed : MoveSpeed) * magnitude, SpeedChangeRate * dt);
-            Vector3 viewForward = MovementForward;
-            Vector3 viewRight = Vector3.Cross(targetUp, viewForward).normalized;
-            Vector3 direction = viewForward * move.y + viewRight * move.x;
+            speed = Mathf.MoveTowards(speed, (IsUltraJumping ? EffectiveUltraJumpSpeed : input.sprint ? SprintSpeed : MoveSpeed) * magnitude, SpeedChangeRate * dt);
             if (direction.sqrMagnitude > 0.0001f)
             {
-                direction.Normalize();
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction, targetUp),
                     1f - Mathf.Exp(-dt / Mathf.Max(0.01f, RotationSmoothTime)));
             }
             if (IsUltraJumping)
             {
+                // Camera-relative keyboard/stick input can steer, reverse and
+                // brake throughout flight. Preserve momentum when real gravity
+                // zones turn the character, rather than picking a target frame.
+                float steeringAcceleration = SpeedChangeRate * Mathf.Max(1f, EffectiveUltraJumpSpeed / Mathf.Max(1f, MoveSpeed));
+                Vector3 lateral = Vector3.MoveTowards(Vector3.ProjectOnPlane(ultraVelocity, targetUp),
+                    direction * (EffectiveUltraJumpSpeed * magnitude), steeringAcceleration * dt);
+                verticalSpeed = Mathf.Max(-45f, Vector3.Dot(ultraVelocity, targetUp));
+                ultraVelocity = lateral + targetUp * verticalSpeed;
                 Vector3 step = ultraVelocity * dt - targetUp * (.5f * acceleration * dt * dt);
                 ultraVelocity -= targetUp * (acceleration * dt);
-                Vector3 before = transform.position;
                 motor.Move(step, targetUp, false, dt);
-                ultraElapsed += dt;
                 verticalSpeed = Vector3.Dot(ultraVelocity, targetUp);
-                if (ultraElapsed > ultraDuration + .6f || (transform.position - before - step).sqrMagnitude > .04f)
-                    FinishUltraJump();
             }
             else motor.Move((direction * speed + targetUp * verticalSpeed) * dt + supportMotion, targetUp, Grounded, dt);
-            if (motor.HitCeiling && verticalSpeed > 0f) verticalSpeed = 0f;
+            if (motor.HitCeiling && verticalSpeed > 0f)
+            {
+                if (IsUltraJumping) ultraVelocity -= targetUp * verticalSpeed;
+                verticalSpeed = 0f;
+            }
             if (animateCamera)
             {
                 cameraPivotCorrection = previousCameraPosition - transform.TransformPoint(cameraTargetOffset);
@@ -263,22 +262,11 @@ namespace StarterAssets
             alignmentReady = false;
             if (motor != null) motor.ClearSupport();
         }
-        public void LaunchUltraJump(Vector3 velocity, Vector3 landingUp, float duration, bool targeted = true)
-        {
-            Initialize();
-            IsUltraJumping = true; ultraTargeted = targeted;
-            ultraVelocity = velocity; ultraStartUp = lastUp; ultraLandingUp = landingUp.normalized;
-            ultraElapsed = 0f; ultraDuration = duration;
-            verticalSpeed = Vector3.Dot(velocity, lastUp);
-            groundedTime = jumpBufferTime = 0f; jumpCooldown = .25f;
-            Grounded = false; jumping = true; motor.ClearSupport();
-            if (targeted && gravity != null) gravity.SetAirborneGravity(-lastUp);
-        }
         private void FinishUltraJump()
         {
             if (!IsUltraJumping) return;
             IsUltraJumping = false;
-            if (gravity != null) gravity.ReleaseAirborneGravity();
+            speed = Mathf.Min(speed, input.sprint ? SprintSpeed : MoveSpeed);
         }
         private void OnDisable() => FinishUltraJump();
         private void OnDestroy()
@@ -286,14 +274,14 @@ namespace StarterAssets
             if (brain != null && brain.m_WorldUpOverride == cameraUp) brain.m_WorldUpOverride = previousWorldUp;
             if (cameraUp != null) Destroy(cameraUp.gameObject);
         }
-        private void OnFootstep(AnimationEvent evt)
+        public void OnFootstep(AnimationEvent evt)
         {
-            if (evt.animatorClipInfo.weight > 0.5f && FootstepAudioClips != null && FootstepAudioClips.Length > 0)
+            if (movementAudio != null && evt.animatorClipInfo.weight > 0.5f && FootstepAudioClips != null && FootstepAudioClips.Length > 0)
                 movementAudio.PlayOneShot(FootstepAudioClips[Random.Range(0, FootstepAudioClips.Length)], FootstepAudioVolume);
         }
-        private void OnLand(AnimationEvent evt)
+        public void OnLand(AnimationEvent evt)
         {
-            if (evt.animatorClipInfo.weight > 0.5f && LandingAudioClip != null) movementAudio.PlayOneShot(LandingAudioClip, FootstepAudioVolume);
+            if (movementAudio != null && evt.animatorClipInfo.weight > 0.5f && LandingAudioClip != null) movementAudio.PlayOneShot(LandingAudioClip, FootstepAudioVolume);
         }
     }
 }

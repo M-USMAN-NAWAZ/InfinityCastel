@@ -339,6 +339,128 @@ public static class InfinityCastleTraversalValidation
         Capture(camera, "traversal-sky-only.png");
     }
 
+    public static void FreeJump()
+    {
+        using var report = new StreamWriter(Path.GetFullPath("../castle-free-jump-tests.txt")) { AutoFlush = true };
+        void Check(bool passed, string message)
+        { report.WriteLine((passed ? "PASS " : "FAIL ") + message); if (!passed) throw new InvalidOperationException(message); }
+        SimulationMode previousMode = Physics.simulationMode;
+        try
+        {
+            Physics.simulationMode = SimulationMode.Script;
+            foreach (var timing in new[] { (dt: 1f/30f, jitter: false), (dt: 1f/60f, jitter: false), (dt: 1f/30f, jitter: true) })
+            foreach (Vector3 up in new[] { Vector3.up, Vector3.down, Vector3.right, Vector3.left, Vector3.forward, Vector3.back })
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+                string label = $"{1f/timing.dt:F0}Hz jitter={timing.jitter} up={up}: ";
+                Vector3 forward = Vector3.ProjectOnPlane(Vector3.forward, up).normalized;
+                if (forward.sqrMagnitude < .01f) forward = Vector3.up;
+                Vector3 right = Vector3.Cross(up, forward);
+                GameObject Surface(Vector3 point, Vector3 normal)
+                {
+                    var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    floor.transform.SetPositionAndRotation(point-normal*.5f, Quaternion.FromToRotation(Vector3.up, normal));
+                    floor.transform.localScale = new Vector3(400,1,400); return floor;
+                }
+                Surface(Vector3.zero, up);
+                var camera = new GameObject("Free jump camera").AddComponent<Camera>(); camera.tag = "MainCamera";
+                camera.transform.rotation = Quaternion.LookRotation(forward, up);
+                var actor = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Characters/SunBreathers/TanjiroThirdPerson.prefab"));
+                var player = actor.GetComponent<ThirdPersonController>();
+                var input = actor.GetComponent<StarterAssetsInputs>(); input.analogMovement = true;
+                var gravity = actor.GetComponent<InfinityGravityBody>();
+                player.MoveSpeed = 5f; player.Initialize();
+                int frames = 0; float peak = 0; bool hitCeiling = false;
+                void Tick(float seconds)
+                {
+                    for (float elapsed = 0; elapsed < seconds-.00001f;)
+                    {
+                        float dt = Mathf.Min(seconds-elapsed, timing.dt*(timing.jitter ? (++frames%2==0 ? .7f : 1.3f) : 1));
+                        Vector3 before = actor.transform.TransformPoint(actor.GetComponent<CharacterController>().center);
+                        player.Simulate(dt); player.SimulateCamera(dt); Physics.SyncTransforms(); Physics.Simulate(dt);
+                        Vector3 after = actor.transform.TransformPoint(actor.GetComponent<CharacterController>().center);
+                        if (Vector3.Distance(before, after)>3f) throw new InvalidOperationException(label+"discontinuous flight");
+                        peak = Mathf.Max(peak, Vector3.Dot(actor.transform.position, up)); hitCeiling |= player.Motor.HitCeiling;
+                        elapsed += dt;
+                    }
+                }
+                void Reset()
+                {
+                    player.ResetFallVelocity(); gravity.RestoreDefaultGravity(); gravity.SetGravity(-up,22,true,8);
+                    actor.transform.SetPositionAndRotation(up*.05f, Quaternion.LookRotation(forward,up));
+                    camera.transform.rotation = Quaternion.LookRotation(forward,up);
+                    input.MoveInput(Vector2.zero); input.LookInput(Vector2.zero); input.JumpInput(false); input.SprintInput(false); input.UltraJumpInput(false);
+                    Tick(.3f); peak = 0; hitCeiling = false;
+                    Check(player.Grounded, label+"solid launch floor");
+                }
+                void Launch(Vector2 movement, bool sprintJump=false)
+                {
+                    input.MoveInput(movement);
+                    if (sprintJump) { input.SprintInput(true); input.JumpInput(true); }
+                    else input.UltraJumpInput(true);
+                    Tick(timing.dt); input.SprintInput(false);
+                    Check(player.IsUltraJumping && !player.Grounded && player.VerticalSpeed>0, label+"free launch without a castle or landing target");
+                }
+                Reset();
+                Check(Mathf.Approximately(player.EffectiveUltraJumpSpeed,19.5f) && Mathf.Approximately(player.EffectiveUltraJumpHeight,13.5f),label+"75 percent power preserved");
+                Launch(Vector2.zero); Tick(1.3f);
+                Check(Vector3.ProjectOnPlane(actor.transform.position,up).magnitude<.1f && Vector3.Dot(gravity.Up,up)>.99f,
+                    label+"stationary jump stays vertical with no timed gravity turn");
+                Tick(2f);
+                Check(player.Grounded && !player.IsUltraJumping && Mathf.Abs(peak-13.5f)<.6f, label+"natural apex and landing; peak="+peak);
+                Reset(); Launch(Vector2.down); Tick(.3f);
+                Check(Vector3.Dot(actor.transform.position,forward)<-4f,label+"backward launch follows input rather than camera aim");
+                Tick(3f);
+                Check(player.Grounded && Vector3.ProjectOnPlane(player.Motor.Velocity,up).magnitude<=player.MoveSpeed+.5f,
+                    label+"landing restores normal movement speed");
+                Reset(); Launch(new Vector2(1,1)); Tick(.25f);
+                Check(Vector3.Dot(actor.transform.position,forward)>2f && Vector3.Dot(actor.transform.position,right)>2f,label+"diagonal launch");
+                Reset(); Launch(Vector2.right*.25f); Tick(.3f);
+                Check(Vector3.Dot(player.Motor.Velocity,right)>4f && Vector3.Dot(player.Motor.Velocity,right)<6f,label+"analog stick strength controls lateral speed");
+                Reset(); Launch(Vector2.up); Tick(.3f); input.MoveInput(Vector2.right); Tick(.65f);
+                Check(Vector3.Dot(player.Motor.Velocity,right)>10f && player.IsUltraJumping,label+"steer sideways during flight");
+                input.MoveInput(Vector2.down); Tick(.65f);
+                Check(Vector3.Dot(player.Motor.Velocity,forward)<-8f,label+"reverse direction during flight");
+                input.MoveInput(Vector2.zero); Tick(.45f);
+                Check(Vector3.ProjectOnPlane(player.Motor.Velocity,up).magnitude<.5f,label+"release movement to brake");
+                Tick(1f); Check(player.Grounded && !player.IsUltraJumping,label+"land where free steering leads");
+                Reset(); Launch(Vector2.up,true); Tick(.2f); camera.transform.rotation = Quaternion.LookRotation(right,up); Tick(.7f);
+                Check(Vector3.Dot(player.Motor.Velocity,right)>10f,label+"Shift+Space uses the same camera-relative free steering");
+                Reset(); input.JumpInput(true); Tick(3f);
+                Check(player.Grounded && !player.IsUltraJumping && peak>1f && peak<1.8f,label+"normal jump remains unchanged");
+                if (up != Vector3.up) continue;
+                Reset(); var ceiling = Surface(Vector3.up*3.2f,Vector3.down); Launch(Vector2.zero); Tick(2f);
+                Check(hitCeiling && peak<2f && player.Grounded && !player.IsUltraJumping,label+"ceiling collision stops ascent and permits landing");
+                UnityEngine.Object.DestroyImmediate(ceiling);
+                Reset(); var wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                wall.transform.position = new Vector3(0,5,3); wall.transform.localScale = new Vector3(40,20,.2f);
+                Launch(Vector2.up); Tick(.3f);
+                Check(actor.transform.position.z<3f && player.IsUltraJumping,label+"wall collision does not cancel the jump or tunnel through it");
+                input.MoveInput(Vector2.right); Tick(.6f);
+                Check(actor.transform.position.x>2f && player.IsUltraJumping,label+"can steer along a wall after contact");
+                UnityEngine.Object.DestroyImmediate(wall);
+                foreach (Vector3 newUp in new[] { Vector3.right,Vector3.down })
+                {
+                    Reset(); Launch(Vector2.zero); Tick(.3f);
+                    Vector3 landing = newUp==Vector3.right ? Vector3.left*10f : Vector3.up*12f;
+                    var floor = Surface(landing,newUp);
+                    var zone = new GameObject("Real destination gravity zone").AddComponent<InfiniteCastleGrid>();
+                    zone.transform.position = actor.transform.position;
+                    zone.Configure(-newUp,Vector3.zero,Vector3.one*100f,5); gravity.EnterZone(zone);
+                    Tick(2f);
+                    Check(player.Grounded && !player.IsUltraJumping && gravity.CurrentZone==zone && Vector3.Dot(gravity.Up,newUp)>.99f,
+                        label+"real zone, not a timer, transfers gravity and lands on "+newUp);
+                    zone.enabled = false; gravity.ResolveGravity();
+                    Check(Vector3.Dot(gravity.Up,up)>.99f,label+"no airborne gravity override persists after leaving the zone");
+                    UnityEngine.Object.DestroyImmediate(zone.gameObject); UnityEngine.Object.DestroyImmediate(floor);
+                }
+            }
+            report.WriteLine("ALL FREE SUPER JUMP CHECKS PASSED");
+        }
+        catch (Exception error) { report.WriteLine(error); Debug.LogException(error); EditorApplication.Exit(1); }
+        finally { Physics.simulationMode = previousMode; }
+    }
+
     public static void Traversal()
     {
         using var report = new StreamWriter(Path.GetFullPath("../castle-ultra-jump-tests.txt")) { AutoFlush = true };
@@ -367,7 +489,6 @@ public static class InfinityCastleTraversalValidation
             castle.player = actor.transform; castle.castleLighting = false; castle.useLearnedDirector = false;
             castle.periodicRebuilding = false; castle.simultaneousShifts = 0;
             castle.InitializeCastle();
-            bool variableTimeStep = false; int simulatedFrames = 0;
             void Frame(int frames, float dt = 1f / 30f)
             {
                 for (int frame = 0; frame < frames; frame++)
@@ -378,56 +499,19 @@ public static class InfinityCastleTraversalValidation
                         var zone = hit.GetComponent<InfiniteCastleGrid>();
                         if (hit.isTrigger && zone != null) gravity.EnterZone(zone);
                     }
-                    float stepTime = variableTimeStep ? dt * (simulatedFrames++ % 2 == 0 ? .7f : 1.3f) : dt;
-                    castle.SimulateCastle(stepTime); player.Simulate(stepTime); player.SimulateCamera(stepTime);
-                    Physics.SyncTransforms(); Physics.Simulate(stepTime);
+                    castle.SimulateCastle(dt); player.Simulate(dt); player.SimulateCamera(dt);
+                    Physics.SyncTransforms(); Physics.Simulate(dt);
                 }
             }
             Frame(30);
             Check(Mathf.Approximately(player.EffectiveUltraJumpSpeed, 19.5f) &&
-                Mathf.Approximately(player.EffectiveUltraJumpHeight, 13.5f) && Mathf.Approximately(player.EffectiveUltraJumpRange, 63.75f),
-                "Super-jump speed, height and targeting range are 75 percent of the original settings");
-            Vector3 start = actor.transform.position;
+                Mathf.Approximately(player.EffectiveUltraJumpHeight, 13.5f),
+                "Free super-jump speed and height remain 75 percent of the original settings");
             var rooms = castle.GetComponentsInChildren<CastleArchitectureModule>().Where(module => module.name.StartsWith("Gravity Leap Room")).ToArray();
             Check(rooms.Length == 5, "Five real native landing rooms above and on four sides of the starting roof");
             int transforms = castle.GetComponentsInChildren<Transform>(true).Length;
-            float longestJump = 0f, largestCameraTurn = 0f;
-            foreach (var timing in new[] { (dt: 1f / 30f, jitter: false), (dt: 1f / 60f, jitter: false), (dt: 1f / 30f, jitter: true) }) foreach (var room in rooms)
-            {
-                float dt = timing.dt; variableTimeStep = timing.jitter;
-                actor.transform.SetPositionAndRotation(start, Quaternion.identity); player.ResetFallVelocity(); gravity.RestoreDefaultGravity(); Frame(20);
-                Vector3 up = room.transform.up, roof = room.transform.TransformPoint(room.roofPoint);
-                Check(player.Grounded, "Solid launch roof for " + up);
-                Vector3 aim = (roof + up * .93f - (actor.transform.position + Vector3.up * .93f)).normalized;
-                camera.transform.rotation = Quaternion.LookRotation(aim, Mathf.Abs(aim.y) > .99f ? Vector3.forward : Vector3.up);
-                input.UltraJumpInput(true); Frame(1, dt);
-                Check(player.IsUltraJumping && Vector3.Dot(castle.UltraJumpLandingUp, up) > .99f,
-                    "Ultra input launches toward native room " + up + " at " + Mathf.RoundToInt(1f / dt) + " Hz; variable=" + variableTimeStep + "; " + castle.UltraJumpBlockReason);
-                Check(gravity.CurrentZone == null, "Airborne transfer does not reuse a stale floor-corner pivot");
-                longestJump = Mathf.Max(longestJump, Vector3.Distance(start, castle.UltraJumpDestination));
-                bool changed = false, continuous = true;
-                Vector3 previous = actor.transform.position;
-                Quaternion previousCamera = player.CinemachineCameraTarget.transform.rotation;
-                for (int frame = 0; frame < Mathf.CeilToInt(6f / dt); frame++)
-                {
-                    Frame(1, dt); changed |= Vector3.Dot(gravity.Up, up) > .99f;
-                    continuous &= Vector3.Distance(previous, actor.transform.position) < 4f;
-                    largestCameraTurn = Mathf.Max(largestCameraTurn, Quaternion.Angle(previousCamera, player.CinemachineCameraTarget.transform.rotation));
-                    previous = actor.transform.position; previousCamera = player.CinemachineCameraTarget.transform.rotation;
-                }
-                Check(continuous, "Continuous physical flight without teleporting");
-                Check(changed && player.Grounded && Vector3.Dot(gravity.Up, up) > .99f && Vector3.Distance(actor.transform.position, roof) < 4f,
-                    "Land and remain supported in target gravity " + up + "; position=" + actor.transform.position + "; target=" + roof + "; grounded=" + player.Grounded);
-                Vector3 returnAim = (start + Vector3.up * .93f - (actor.transform.position + up * .93f)).normalized;
-                camera.transform.rotation = Quaternion.LookRotation(returnAim, Mathf.Abs(returnAim.y) > .99f ? Vector3.forward : Vector3.up);
-                input.SprintInput(true); input.JumpInput(true); Frame(1, dt); input.SprintInput(false);
-                Check(player.IsUltraJumping && castle.UltraJumpLandingUp.y > .99f, "Sprint+jump returns from " + up);
-                Frame(Mathf.CeilToInt(6f / dt), dt);
-                Check(player.Grounded && Vector3.Dot(gravity.Up, Vector3.up) > .99f && Vector3.Distance(actor.transform.position, start) < 5f,
-                    "Return to original gravity without teleporting " + up + "; pos=" + actor.transform.position + "; up=" + gravity.Up + "; start=" + start);
-            }
-            Check(longestJump > 40f, "Real long-distance building jump: " + longestJump.ToString("F1") + " metres");
-            Check(largestCameraTurn < 20f, "Gravity camera eases through transfers; largest frame turn=" + largestCameraTurn.ToString("F1") + " degrees");
+            // Free steering/flight is exercised by FreeJump(), independently
+            // of the generated castle. No test should require an auto landing.
             castle.TryGetBuildingFloor(0, 6, false, out Vector3 nativeRoof, out _);
             castle.TryGetBuildingFloor(0, 7, false, out Vector3 sideFloor, out Vector3 sideUp);
             gravity.RestoreDefaultGravity(); player.ResetFallVelocity(); actor.transform.rotation = Quaternion.identity;

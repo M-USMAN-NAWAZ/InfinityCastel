@@ -1,0 +1,23 @@
+{
+  "triangles": 50000,
+  "vertices": 25002,
+  "materials": 1,
+  "inscription": "滅",
+  "inscription_baked_into_albedo": true,
+  "original_geometry_preserved": true,
+  "length_metres": 1.196758,
+  "maps": {
+    "Albedo": [
+      2048,
+      2048
+    ],
+    "Normal": [
+      1024,
+      1024
+    ],
+    "MetallicSmoothness": [
+      1024,
+      1024
+    ]
+  }
+}

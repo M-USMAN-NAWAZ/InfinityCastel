@@ -1,0 +1,643 @@
+{
+  "Object_4": {
+    "vertices": 130,
+    "triangles": 124,
+    "min": [
+      0.2785740792751312,
+      -0.43890541791915894,
+      -0.16995850205421448
+    ],
+    "max": [
+      1.1230515241622925,
+      0.4389052391052246,
+      0.16995850205421448
+    ],
+    "materials": [
+      "plate_handle"
+    ],
+    "material_faces": {
+      "0": 124
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "plate_handle": [
+        {
+          "node": "Image Texture",
+          "image": "Image_0",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_1",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_2",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.003",
+          "image": "Image_3",
+          "outputs": []
+        }
+      ]
+    }
+  },
+  "Object_6": {
+    "vertices": 1539,
+    "triangles": 1731,
+    "min": [
+      0.5721747875213623,
+      -1.0148427486419678,
+      -0.7343113422393799
+    ],
+    "max": [
+      0.7258339524269104,
+      1.0148425102233887,
+      0.7343113422393799
+    ],
+    "materials": [
+      "plate_out.002"
+    ],
+    "material_faces": {
+      "0": 1731
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "plate_out.002": [
+        {
+          "node": "Image Texture",
+          "image": "Image_4",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_5",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_6",
+          "outputs": [
+            "Color"
+          ]
+        }
+      ]
+    }
+  },
+  "Object_8": {
+    "vertices": 904,
+    "triangles": 892,
+    "min": [
+      0.6246060729026794,
+      -0.8740407824516296,
+      -0.6324309706687927
+    ],
+    "max": [
+      0.6748446226119995,
+      0.8740406036376953,
+      0.6324309706687927
+    ],
+    "materials": [
+      "plate_in"
+    ],
+    "material_faces": {
+      "0": 892
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "plate_in": [
+        {
+          "node": "Image Texture",
+          "image": "Image_7",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_8",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_9",
+          "outputs": [
+            "Color"
+          ]
+        }
+      ]
+    }
+  },
+  "Object_10": {
+    "vertices": 936,
+    "triangles": 920,
+    "min": [
+      0.5865715146064758,
+      -0.2706103026866913,
+      -0.4667609930038452
+    ],
+    "max": [
+      0.7149398922920227,
+      0.27061009407043457,
+      0.4667610228061676
+    ],
+    "materials": [
+      "flower"
+    ],
+    "material_faces": {
+      "0": 920
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "flower": [
+        {
+          "node": "Image Texture",
+          "image": "Image_10",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_11",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_12",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.003",
+          "image": "Image_13",
+          "outputs": []
+        }
+      ]
+    }
+  },
+  "Object_12": {
+    "vertices": 3380,
+    "triangles": 3224,
+    "min": [
+      -3.3157293796539307,
+      -0.5521721839904785,
+      -0.1630294770002365
+    ],
+    "max": [
+      0.2883789837360382,
+      0.41116365790367126,
+      0.15668413043022156
+    ],
+    "materials": [
+      "mental_grib"
+    ],
+    "material_faces": {
+      "0": 3224
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "mental_grib": [
+        {
+          "node": "Image Texture",
+          "image": "Image_14",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_15",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_16",
+          "outputs": [
+            "Color"
+          ]
+        }
+      ]
+    }
+  },
+  "Object_14": {
+    "vertices": 658,
+    "triangles": 1148,
+    "min": [
+      -3.6019909381866455,
+      -0.563225269317627,
+      -0.15928122401237488
+    ],
+    "max": [
+      0.29525279998779297,
+      0.401487797498703,
+      0.15293584764003754
+    ],
+    "materials": [
+      "long_grib"
+    ],
+    "material_faces": {
+      "0": 1148
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "long_grib": [
+        {
+          "node": "Image Texture",
+          "image": "Image_17",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_18",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_19",
+          "outputs": [
+            "Color"
+          ]
+        }
+      ]
+    }
+  },
+  "Object_16": {
+    "vertices": 130,
+    "triangles": 124,
+    "min": [
+      -3.8415024280548096,
+      -0.6218258142471313,
+      -0.20067636668682098
+    ],
+    "max": [
+      -3.2958152294158936,
+      0.2994007468223572,
+      0.20067641139030457
+    ],
+    "materials": [
+      "bottom_grib"
+    ],
+    "material_faces": {
+      "0": 124
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "bottom_grib": [
+        {
+          "node": "Image Texture",
+          "image": "Image_20",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_21",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_22",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.003",
+          "image": "Image_23",
+          "outputs": []
+        }
+      ]
+    }
+  },
+  "Object_18": {
+    "vertices": 920,
+    "triangles": 460,
+    "min": [
+      1.0528382062911987,
+      -2.605900764465332,
+      -0.08663511276245117
+    ],
+    "max": [
+      17.730504989624023,
+      0.37224897742271423,
+      0.0866350382566452
+    ],
+    "materials": [
+      "steel"
+    ],
+    "material_faces": {
+      "0": 460
+    },
+    "uv_layers": [
+      "UVMap",
+      "UVMap.001",
+      "UVMap.002",
+      "UVMap.003"
+    ],
+    "shader_images": {
+      "steel": [
+        {
+          "node": "Image Texture",
+          "image": "Image_24",
+          "outputs": [
+            "Base Color"
+          ]
+        },
+        {
+          "node": "Image Texture.001",
+          "image": "Image_25",
+          "outputs": [
+            "Color"
+          ]
+        },
+        {
+          "node": "Image Texture.002",
+          "image": "Image_26",
+          "outputs": [
+            "Color"
+          ]
+        }
+      ]
+    }
+  },
+  "textures": [
+    {
+      "name": "Image_0",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_1",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_10",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_11",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_12",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_13",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_14",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_15",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_16",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_17",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_18",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_19",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_2",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_20",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_21",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_22",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_23",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_24",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_25",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_26",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_3",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_4",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_5",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_6",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_7",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_8",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    },
+    {
+      "name": "Image_9",
+      "size": [
+        4096,
+        4096
+      ],
+      "packed": true
+    }
+  ]
+}

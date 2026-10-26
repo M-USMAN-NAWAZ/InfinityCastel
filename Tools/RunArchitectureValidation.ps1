@@ -1,4 +1,4 @@
-param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model', 'Retopology', 'Junctions', 'Skybox')][string]$Mode = 'Test',
+param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'FreeJump', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model', 'Retopology', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation')][string]$Mode = 'Test',
     [ValidateSet('Default','Vulkan','OpenGLCore')][string]$GraphicsAPI = 'Default')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -13,7 +13,7 @@ foreach ($folder in @('Assets', 'Packages', 'ProjectSettings', 'Library/PackageC
 }
 $log = Join-Path $root "Temp/building-architecture-$($Mode.ToLower()).log"
 $method = "InfinityCastleArchitectureValidation.$Mode"
-if ($Mode -in @('Diagnostics', 'Traversal', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming')) { $method = "InfinityCastleTraversalValidation.$Mode" }
+if ($Mode -in @('Diagnostics', 'Traversal', 'FreeJump', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming')) { $method = "InfinityCastleTraversalValidation.$Mode" }
 if ($Mode -in @('Player', 'AndroidBuild')) { $method = "InfinityCastleBuildValidation.$Mode" }
 if ($Mode -eq 'Assembly') { $method = 'CastleTimberAssemblyBake.Assembly' }
 if ($Mode -eq 'TrainingBuild') { $method = 'InfinityCastleLearningTools.BuildTraining' }
@@ -21,17 +21,60 @@ if ($Mode -eq 'Model') { $method = 'InfinityCastleLearningTools.ValidateModel' }
 if ($Mode -eq 'Retopology') { $method = 'CastleRetopologyBake.Validate' }
 if ($Mode -eq 'Junctions') { $method = 'CastlePathJunctionValidation.Junctions' }
 if ($Mode -eq 'Skybox') { $method = 'CastleBackgroundValidation.Run' }
+if ($Mode -eq 'Characters') { $method = 'SunBreatherRigValidation.Run' }
+if ($Mode -eq 'CharacterPlayer') { $method = 'SunBreatherPlayerSetup.Validate' }
+if ($Mode -eq 'Katana') { $method = 'RedKatanaSetup.Run' }
+if ($Mode -eq 'YoriichiKatana') { $method = 'RedKatanaSetup.Yoriichi' }
+if ($Mode -eq 'SwordInspect') { $method = 'TanjiroSwordAnimationSetup.Inspect' }
+if ($Mode -eq 'SwordAnimation') { $method = 'TanjiroSwordAnimationSetup.Build' }
 $arguments = @('-batchmode', '-projectPath', ('"' + $project + '"'), '-executeMethod', $method, '-logFile', ('"' + $log + '"'))
 if ($GraphicsAPI -eq 'Vulkan') { $arguments += '-force-vulkan' }
 if ($GraphicsAPI -eq 'OpenGLCore') { $arguments += '-force-glcore' }
 if ($Mode -in @('Player', 'TrainingBuild', 'Model')) { $arguments += @('-buildTarget', 'Win64') }
 if ($Mode -eq 'AndroidBuild') { $arguments += @('-buildTarget', 'Android') }
-if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox')) { $arguments += @('-nographics', '-quit') }
-if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox')) { $arguments += '-quit' }
+if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation')) { $arguments += @('-nographics', '-quit') }
+if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation')) { $arguments += '-quit' }
 $process = Start-Process 'D:/for unity/6000.0.51f1/Editor/Unity.exe' -WindowStyle Hidden -PassThru -ArgumentList $arguments
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "Architecture $Mode failed. See $log" }
 if ($Mode -in @('TrainingBuild', 'Model')) { exit 0 }
+if ($Mode -eq 'SwordInspect') { Get-Content -LiteralPath "$root/Temp/sword-animation-inspection.txt"; exit 0 }
+if ($Mode -eq 'SwordAnimation') {
+    & robocopy "$project/Assets/Characters/SunBreathers/SwordActions" "$root/Assets/Characters/SunBreathers/SwordActions" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'Sword animation asset copy failed.' }
+    foreach ($file in @('Assets/Characters/SunBreathers/Tanjiro.prefab','Assets/Characters/SunBreathers/TanjiroThirdPerson.prefab','Assets/Characters/SunBreathers/SwordActions.meta','Assets/Scripts/TanjiroSword.cs.meta','Assets/Editor/TanjiroSwordAnimationSetup.cs.meta','Assets/Editor/TanjiroSwordPoseBake.cs.meta')) {
+        Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file"
+    }
+    Get-Content -LiteralPath "$root/Temp/sword-animation-tests.txt"; exit 0
+}
+if ($Mode -in @('Katana','YoriichiKatana')) {
+    $weaponName = if ($Mode -eq 'Katana') { 'RedNichirinKatana' } else { 'YoriichiKatana' }
+    $reportPrefix = if ($Mode -eq 'Katana') { 'red-katana' } else { 'yoriichi-katana' }
+    & robocopy "$project/Assets/Weapons/$weaponName" "$root/Assets/Weapons/$weaponName" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'Katana asset copy failed.' }
+    foreach ($file in @('Assets/Weapons.meta',"Assets/Weapons/$weaponName.meta",'Assets/Editor/RedKatanaSetup.cs.meta')) {
+        if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }
+    }
+    Get-Content -LiteralPath "$root/Temp/$reportPrefix-tests.txt"
+    exit 0
+}
+if ($Mode -eq 'FreeJump') {
+    Get-Content -LiteralPath "$root/Temp/castle-free-jump-tests.txt"
+    exit 0
+}
+if ($Mode -eq 'CharacterPlayer') {
+    Get-Content -LiteralPath "$root/Temp/tanjiro-player-tests.txt"
+    exit 0
+}
+if ($Mode -eq 'Characters') {
+    & robocopy "$project/Assets/Characters/SunBreathers" "$root/Assets/Characters/SunBreathers" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw 'Character asset copy failed.' }
+    foreach ($file in @('Assets/Characters.meta','Assets/Characters/SunBreathers.meta','Assets/Editor/SunBreatherRigValidation.cs.meta','Assets/StarterAssets/ThirdPersonController/Scripts/ThirdPersonAnimationEvents.cs.meta')) {
+        if (!(Test-Path -LiteralPath "$root/$file")) { Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file" }
+    }
+    Get-Content -LiteralPath "$root/Temp/sun-breather-rig-tests.txt"
+    exit 0
+}
 if ($Mode -eq 'Skybox') {
     foreach ($file in @('Assets/Images/CastleFromGameModels.png', 'Assets/Images/CastleFromGameModels.png.meta', 'Assets/Mat/MyMat/InfintyCastelSkyBox.mat')) {
         Copy-Item -LiteralPath "$project/$file" -Destination "$root/$file"

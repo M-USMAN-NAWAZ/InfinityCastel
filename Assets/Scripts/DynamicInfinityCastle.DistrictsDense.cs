@@ -290,7 +290,7 @@ public partial class DynamicInfinityCastle
             float distance = room.bounds.SqrDistance(player.position);
             bool approaching = room.bounds.SqrDistance(ahead) < 24f * 24f;
             if (distance < 48f * 48f || approaching) nearDistrictRooms.Add(room);
-            else if (distance > 68f * 68f && !IsUltraJumpTarget(room)) ReleaseDistrictBody(room);
+            else if (distance > 68f * 68f) ReleaseDistrictBody(room);
         }
         nearDistrictRooms.Sort((a, b) => a.bounds.SqrDistance(player.position).CompareTo(b.bounds.SqrDistance(player.position)));
         int promoted = 0;
@@ -388,7 +388,7 @@ public partial class DynamicInfinityCastle
             foreach (DistrictRoom candidate in physicalDistrictRooms)
             {
                 float distance = candidate.bounds.SqrDistance(player.position);
-                if (distance <= farthest || IsUltraJumpTarget(candidate)) continue;
+                if (distance <= farthest) continue;
                 victim = candidate; farthest = distance;
             }
             if (victim != null) ReleaseDistrictBody(victim);

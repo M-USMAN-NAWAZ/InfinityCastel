@@ -261,7 +261,7 @@ public partial class DynamicInfinityCastle : MonoBehaviour
         gravity = player.GetComponent<InfinityGravityBody>();
         if (gravity == null) gravity = player.gameObject.AddComponent<InfinityGravityBody>();
         gravity.defaultGravityStrength = 22f;
-        if (controller != null) { controller.Initialize(); controller.Castle = this; controller.JumpTimeout = Mathf.Min(controller.JumpTimeout, 0.2f); }
+        if (controller != null) { controller.Initialize(); controller.JumpTimeout = Mathf.Min(controller.JumpTimeout, 0.2f); }
         InitializeLearning();
         PrimeLearnedPlan();
         mainCamera = Camera.main;

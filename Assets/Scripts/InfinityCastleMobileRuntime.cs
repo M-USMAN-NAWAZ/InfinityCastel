@@ -79,6 +79,7 @@ public sealed class InfinityCastleMobileRuntime : MonoBehaviour
         ScreenLook = lookRoot.AddComponent<InfinityScreenLook>(); ScreenLook.Configure(inputs);
         Controls.gameObject.SetActive(true);
         CreateUltraJumpButton();
+        CreateSwordButton();
         ApplySafeArea();
     }
     private void CreateUltraJumpButton()
@@ -119,6 +120,25 @@ public sealed class InfinityCastleMobileRuntime : MonoBehaviour
     private void Update()
     {
         if (safeRoot != null && (lastSafeArea != Screen.safeArea || lastSize != new Vector2Int(Screen.width, Screen.height))) ApplySafeArea();
+    }
+    private void CreateSwordButton()
+    {
+        var sword = inputs.GetComponentInChildren<TanjiroSword>();
+        if (sword == null) return;
+        var root = new GameObject("Draw Sheathe Sword", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        root.layer = Controls.gameObject.layer;
+        var rect = root.GetComponent<RectTransform>(); rect.SetParent(safeRoot, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(1, 0);
+        rect.sizeDelta = new Vector2(128, 96); rect.anchoredPosition = new Vector2(-245, 355);
+        var image = root.GetComponent<Image>(); image.color = new Color(.35f, .11f, .08f, .9f);
+        var button = root.GetComponent<Button>(); button.targetGraphic = image;
+        button.navigation = new Navigation { mode = Navigation.Mode.None };
+        button.onClick.AddListener(sword.ToggleSword);
+        var label = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        var labelRect = label.GetComponent<RectTransform>(); labelRect.SetParent(rect, false);
+        labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one; labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
+        var text = label.GetComponent<Text>(); text.text = "DRAW /\nSHEATHE"; text.fontSize = 20;
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); text.alignment = TextAnchor.MiddleCenter; text.raycastTarget = false;
     }
     private void ApplySafeArea()
     {
