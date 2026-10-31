@@ -87,20 +87,22 @@ public partial class DynamicInfinityCastle
             nativeDoorDraws.Add(nativeDoorDraw);
         }
         nativeDoorDraw.instances.Clear(); nativeDoorDraw.construction.Clear();
+        Vector3 position = player.position;
         GeometryUtility.CalculateFrustumPlanes(camera, districtCameraPlanes);
         foreach (BuildingWing wing in buildingWings)
         {
-            if (!wing.active || wing.bounds.SqrDistance(player.position) > CastleVisibleRadius * CastleVisibleRadius ||
+            if (!wing.active || wing.bounds.SqrDistance(position) > CastleVisibleRadius * CastleVisibleRadius ||
                 !GeometryUtility.TestPlanesAABB(districtCameraPlanes, wing.bounds)) continue;
             foreach (BuildingPart part in wing.parts)
             {
                 if (part.closedDoors == null || !GeometryUtility.TestPlanesAABB(districtCameraPlanes, part.bounds)) continue;
+                Matrix4x4 world = part.module.transform.localToWorldMatrix;
                 for (int i = 0; i < part.closedDoors.Length; i++)
                 {
                     if ((part.openDoorMask & (1 << i)) != 0) continue;
                     var port = part.module.ports[i];
                     Matrix4x4 local = Matrix4x4.TRS(part.closedDoors[i].center, Quaternion.LookRotation(port.outward), new Vector3(port.width, 2.3f, .14f));
-                    nativeDoorDraw.instances.Add(part.module.transform.localToWorldMatrix * local);
+                    nativeDoorDraw.instances.Add(world * local);
                     nativeDoorDraw.construction.Add(part.construction);
                 }
             }

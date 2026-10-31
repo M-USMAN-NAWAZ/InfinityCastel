@@ -9,6 +9,7 @@ public partial class DynamicInfinityCastle
     // Grow the actual doorway graph, not another rotated/scaled copy of a four-room grid.
     private void PopulateDistrictBlock(DistrictBlock block, Vector3Int key)
     {
+        block.physicsNear = false;
         foreach (DistrictRoom room in block.rooms)
         { room.active = room.assemblySeen = false; room.openDoorMask = 0; room.construction = Vector4.zero; }
         foreach (DistrictCrossing crossing in block.crossings)

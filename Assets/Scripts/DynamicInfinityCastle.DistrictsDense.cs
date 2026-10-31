@@ -23,6 +23,7 @@ public partial class DynamicInfinityCastle
         public Matrix4x4 matrix;
         public Bounds bounds;
         public bool active;
+        public float physicsDistance;
         public DistrictBody body;
         public bool assemblySeen;
         public Vector4 construction;
@@ -42,6 +43,7 @@ public partial class DynamicInfinityCastle
     private sealed class DistrictBlock
     {
         public Bounds bounds;
+        public bool physicsNear;
         public readonly DistrictRoom[] rooms = new DistrictRoom[DistrictFloors * DistrictRoomsPerFloor];
         public readonly DistrictCrossing[] crossings = new DistrictCrossing[72];
         public DistrictBlock()
@@ -64,6 +66,7 @@ public partial class DynamicInfinityCastle
         public CastleArchitectureModule module;
         public MeshCollider[] geometry;
         public Matrix4x4[] collisionMatrices;
+        public Matrix4x4[] doorMatrices;
         public readonly List<DistrictDraw>[] draws = { new(), new(), new() };
     }
     private sealed class DistrictDraw
@@ -115,6 +118,13 @@ public partial class DynamicInfinityCastle
             var spec = new DistrictTemplate { module = prefab.GetComponent<CastleArchitectureModule>(),
                 geometry = prefab.GetComponentsInChildren<MeshCollider>(true) };
             districtTemplates[type] = spec;
+            spec.doorMatrices = new Matrix4x4[spec.module.ports.Length];
+            for (int door = 0; door < spec.doorMatrices.Length; door++)
+            {
+                var port = spec.module.ports[door];
+                spec.doorMatrices[door] = Matrix4x4.TRS(port.position - port.outward * .06f + Vector3.up * 1.15f,
+                    Quaternion.LookRotation(port.outward), new Vector3(port.width, 2.3f, .14f));
+            }
             spec.collisionMatrices = new Matrix4x4[spec.geometry.Length];
             for (int c = 0; c < spec.geometry.Length; c++)
                 spec.collisionMatrices[c] = prefab.transform.worldToLocalMatrix * spec.geometry[c].transform.localToWorldMatrix;
@@ -282,17 +292,29 @@ public partial class DynamicInfinityCastle
         districtPhysicsClock -= dt;
         if (districtPhysicsClock > 0f) return;
         districtPhysicsClock = .08f;
-        Vector3 ahead = player.position + Vector3.ClampMagnitude(playerVelocity * .8f, 60f);
-        nearDistrictRooms.Clear();
-        foreach (DistrictBlock block in denseBlocks.Values) foreach (DistrictRoom room in block.rooms)
+        Vector3 position = player.position;
+        Vector3 ahead = position + Vector3.ClampMagnitude(playerVelocity * .8f, 60f);
+        // Retire only leased bodies, not all resident rooms. Cluster bounds enclose
+        // every room/path, so distant clusters cannot contain a promotion candidate.
+        for (int i = physicalDistrictRooms.Count - 1; i >= 0; i--)
         {
-            if (!room.active) continue;
-            float distance = room.bounds.SqrDistance(player.position);
-            bool approaching = room.bounds.SqrDistance(ahead) < 24f * 24f;
-            if (distance < 48f * 48f || approaching) nearDistrictRooms.Add(room);
-            else if (distance > 68f * 68f) ReleaseDistrictBody(room);
+            DistrictRoom room = physicalDistrictRooms[i];
+            if (room.bounds.SqrDistance(position) > 68f * 68f && room.bounds.SqrDistance(ahead) >= 24f * 24f)
+                ReleaseDistrictBody(room);
         }
-        nearDistrictRooms.Sort((a, b) => a.bounds.SqrDistance(player.position).CompareTo(b.bounds.SqrDistance(player.position)));
+        nearDistrictRooms.Clear();
+        foreach (DistrictBlock block in denseBlocks.Values)
+        {
+            if (block.bounds.SqrDistance(position) >= 48f * 48f && block.bounds.SqrDistance(ahead) >= 24f * 24f) continue;
+            foreach (DistrictRoom room in block.rooms)
+            {
+                if (!room.active) continue;
+                room.physicsDistance = room.bounds.SqrDistance(position);
+                if (room.physicsDistance < 48f * 48f || room.bounds.SqrDistance(ahead) < 24f * 24f)
+                    nearDistrictRooms.Add(room);
+            }
+        }
+        nearDistrictRooms.Sort((a, b) => a.physicsDistance.CompareTo(b.physicsDistance));
         int promoted = 0;
         foreach (DistrictRoom room in nearDistrictRooms)
         {
@@ -302,13 +324,16 @@ public partial class DynamicInfinityCastle
         nearDistrictCrossings.Clear();
         foreach (DistrictBlock block in denseBlocks.Values)
         {
-            bool nearby = block.bounds.SqrDistance(player.position) < 24f * 24f || block.bounds.SqrDistance(ahead) < 12f * 12f;
+            bool nearby = block.bounds.SqrDistance(position) < 24f * 24f || block.bounds.SqrDistance(ahead) < 12f * 12f;
+            // A far cluster with no leased crossings has nothing to release.
+            if (!nearby && !block.physicsNear) continue;
+            block.physicsNear = nearby;
             foreach (DistrictCrossing crossing in block.crossings)
             {
                 if (!nearby || !crossing.active) { ReleaseDistrictCrossing(crossing); continue; }
                 // A sloping stair's AABB includes empty air. Rank the real walking line, so
                 // unrelated ramps cannot take the collider lease from the player's path.
-                crossing.physicsDistance = DistrictPathDistance(crossing, player.position);
+                crossing.physicsDistance = DistrictPathDistance(crossing, position);
                 bool wanted = crossing.physicsDistance < 24f * 24f || DistrictPathDistance(crossing, ahead) < 12f * 12f;
                 if (!wanted) { ReleaseDistrictCrossing(crossing); continue; }
                 if (crossing.link == null) nearDistrictCrossings.Add(crossing);
@@ -414,6 +439,7 @@ public partial class DynamicInfinityCastle
 
     private void BuildDistrictDraws(Camera camera)
     {
+        Vector3 position = player.position;
         GeometryUtility.CalculateFrustumPlanes(camera, districtCameraPlanes);
         foreach (DistrictTemplate spec in districtTemplates) foreach (var level in spec.draws) foreach (DistrictDraw draw in level)
         { draw.instances.Clear(); draw.construction.Clear(); }
@@ -427,25 +453,23 @@ public partial class DynamicInfinityCastle
             foreach (DistrictRoom room in block.rooms)
             {
                 if (!room.active || !GeometryUtility.TestPlanesAABB(districtCameraPlanes, room.bounds)) continue;
-                float distance = room.bounds.SqrDistance(player.position);
+                float distance = room.bounds.SqrDistance(position);
                 if (distance > CastleVisibleRadius * CastleVisibleRadius) continue;
                 int level = distance < 18f * 18f ? 0 : distance < 45f * 45f ? 1 : 2;
                 Matrix4x4 world = room.matrix;
                 Vector4 construction = DistrictTimber(ref room.assemblySeen, ref room.construction, room.bounds, camera);
                 foreach (DistrictDraw draw in districtTemplates[room.template].draws[level])
                 { draw.instances.Add(world * draw.local); draw.construction.Add(construction); }
-                var module = DistrictModule(room);
-                for (int door = 0; door < module.ports.Length; door++)
+                var doors = districtTemplates[room.template].doorMatrices;
+                for (int door = 0; door < doors.Length; door++)
                 {
                     if ((room.openDoorMask & (1 << door)) != 0) continue;
-                    var port = module.ports[door];
-                    districtDoorDraws[0].instances.Add(world * Matrix4x4.TRS(port.position - port.outward * .06f + Vector3.up * 1.15f,
-                        Quaternion.LookRotation(port.outward), new Vector3(port.width, 2.3f, .14f)));
+                    districtDoorDraws[0].instances.Add(world * doors[door]);
                     districtDoorDraws[0].construction.Add(construction);
                 }
             }
             foreach (DistrictCrossing crossing in block.crossings)
-                if (crossing.active && crossing.bounds.SqrDistance(player.position) <= CastleVisibleRadius * CastleVisibleRadius &&
+                if (crossing.active && crossing.bounds.SqrDistance(position) <= CastleVisibleRadius * CastleVisibleRadius &&
                     GeometryUtility.TestPlanesAABB(districtCameraPlanes, crossing.bounds))
                 {
                     Vector4 construction = DistrictTimber(ref crossing.assemblySeen, ref crossing.construction, crossing.bounds, camera);

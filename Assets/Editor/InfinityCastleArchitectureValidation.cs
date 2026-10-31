@@ -194,6 +194,7 @@ public static class InfinityCastleArchitectureValidation
                 castle.castleLighting = false; castle.useLearnedDirector = false;
                 castle.periodicRebuilding = false; castle.simultaneousShifts = 0;
                 castle.InitializeCastle(); Frame(30);
+                report.WriteLine(CastlePerformanceValidation.Validate(castle)); report.Flush();
                 Check(castle.pathPrefabs.Exists(prefab => prefab.name == "PackSwitchbackStair" && prefab.GetComponent<CastleStairRoute>() != null),
                     "The runtime pool contains the intact authored stair_2 with both flights and its turn landing");
                 Check(castle.IsInitialized && castle.BuildingWingCount >= poolSize * .85f,
@@ -311,6 +312,7 @@ public static class InfinityCastleArchitectureValidation
                 Teleport(stairRoute[0] + stairUp * .08f); Frame(30);
                 for (int waypoint = 1; waypoint < stairRoute.Count; waypoint++) WalkTo(stairRoute[waypoint]);
                 Check(player.Grounded, "Player climbs the supplied pack staircase, turns both corners, and enters the next floor");
+                report.WriteLine(CastlePerformanceValidation.Validate(castle)); report.Flush();
                 const BindingFlags startupFlags = BindingFlags.Instance | BindingFlags.NonPublic;
                 typeof(DynamicInfinityCastle).GetField("loadingControllerWasEnabled", startupFlags).SetValue(castle, player.enabled);
                 typeof(DynamicInfinityCastle).GetField("startupControlsHeld", startupFlags).SetValue(castle, true);
