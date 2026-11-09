@@ -1,7 +1,8 @@
-param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'FreeJump', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model', 'Retopology', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation')][string]$Mode = 'Test',
+param([ValidateSet('Test', 'Volume', 'Preview', 'Install', 'Exterior', 'Diagnostics', 'Traversal', 'FreeJump', 'Quality', 'Corners', 'Recovery', 'Controls', 'Streaming', 'Player', 'AndroidBuild', 'Assembly', 'TrainingBuild', 'Model', 'Retopology', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation', 'Procedural')][string]$Mode = 'Test',
     [ValidateSet('Default','Vulkan','OpenGLCore')][string]$GraphicsAPI = 'Default')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+if ($Mode -eq 'Procedural') { $proceduralSceneHash = (Get-FileHash -LiteralPath "$root/Assets/Scenes/Playground 1.unity").Hash }
 $project = Join-Path $root 'Temp/ArchitectureValidation'
 $project = [IO.Path]::GetFullPath($project)
 if (!$project.StartsWith([IO.Path]::GetFullPath($root) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Validation project must stay inside this workspace.' }
@@ -27,17 +28,32 @@ if ($Mode -eq 'Katana') { $method = 'RedKatanaSetup.Run' }
 if ($Mode -eq 'YoriichiKatana') { $method = 'RedKatanaSetup.Yoriichi' }
 if ($Mode -eq 'SwordInspect') { $method = 'TanjiroSwordAnimationSetup.Inspect' }
 if ($Mode -eq 'SwordAnimation') { $method = 'TanjiroSwordAnimationSetup.Build' }
+if ($Mode -eq 'Procedural') { $method = 'TanjiroProceduralSetup.BuildAndValidate' }
 $arguments = @('-batchmode', '-projectPath', ('"' + $project + '"'), '-executeMethod', $method, '-logFile', ('"' + $log + '"'))
 if ($GraphicsAPI -eq 'Vulkan') { $arguments += '-force-vulkan' }
 if ($GraphicsAPI -eq 'OpenGLCore') { $arguments += '-force-glcore' }
 if ($Mode -in @('Player', 'TrainingBuild', 'Model')) { $arguments += @('-buildTarget', 'Win64') }
 if ($Mode -eq 'AndroidBuild') { $arguments += @('-buildTarget', 'Android') }
-if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation')) { $arguments += @('-nographics', '-quit') }
-if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation')) { $arguments += '-quit' }
+if ($Mode -notin @('Preview', 'Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation', 'Procedural')) { $arguments += @('-nographics', '-quit') }
+if ($Mode -in @('Diagnostics', 'Quality', 'Controls', 'Streaming', 'Assembly', 'Junctions', 'Skybox', 'Characters', 'CharacterPlayer', 'Katana', 'YoriichiKatana', 'SwordInspect', 'SwordAnimation', 'Procedural')) { $arguments += '-quit' }
 $process = Start-Process 'D:/for unity/6000.0.51f1/Editor/Unity.exe' -WindowStyle Hidden -PassThru -ArgumentList $arguments
 $process.WaitForExit()
 if ($process.ExitCode -ne 0) { throw "Architecture $Mode failed. See $log" }
+if ($Mode -eq 'Procedural' -and $env:CASTLE_RIG_REVIEW_ONLY -eq '1') { Get-Content -LiteralPath "$root/Temp/procedural-player-tests.txt"; exit 0 }
 if ($Mode -in @('TrainingBuild', 'Model')) { exit 0 }
+if ($Mode -eq 'Procedural') {
+    if ((Get-FileHash -LiteralPath "$root/Assets/Scenes/Playground 1.unity").Hash -ne $proceduralSceneHash) { throw 'Playground 1 changed during validation; the verified scene is preserved in Temp/ArchitectureValidation. Save the scene and retry.' }
+    $rigFolder = 'Assets/Characters/SunBreathers/ProceduralRig'
+    if (Test-Path -LiteralPath "$project/$rigFolder") {
+        Copy-Item -LiteralPath "$project/$rigFolder.meta" -Destination "$root/$rigFolder.meta"
+        & robocopy "$project/$rigFolder" "$root/$rigFolder" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw 'Procedural rig asset copy failed.' }
+    }
+    if (!(Test-Path -LiteralPath "$root/Temp/Playground 1-before-procedural.unity")) { Copy-Item -LiteralPath "$root/Assets/Scenes/Playground 1.unity" -Destination "$root/Temp/Playground 1-before-procedural.unity" }
+    Copy-Item -LiteralPath "$project/Assets/Scenes/Playground 1.unity" -Destination "$root/Assets/Scenes/Playground 1.unity"
+    Get-Content -LiteralPath "$root/Temp/procedural-player-tests.txt"
+    exit 0
+}
 if ($Mode -eq 'SwordInspect') { Get-Content -LiteralPath "$root/Temp/sword-animation-inspection.txt"; exit 0 }
 if ($Mode -eq 'SwordAnimation') {
     & robocopy "$project/Assets/Characters/SunBreathers/SwordActions" "$root/Assets/Characters/SunBreathers/SwordActions" /E /NFL /NDL /NJH /NJS /NP | Out-Null

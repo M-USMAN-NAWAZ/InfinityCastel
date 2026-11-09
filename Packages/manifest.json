@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.coplaydev.unity-mcp": "https://github.com/CoplayDev/unity-mcp.git?path=/MCPForUnity#81542a7e86292b5c4c21b1782c5af23b567f45ce",
+    "com.ivanmurzak.unity.mcp": "1.7.1",
     "com.ivanmurzak.unity.mcp.animation": "2.0.2",
     "com.unity.ai.navigation": "2.0.8",
     "com.unity.burst": "1.8.21",

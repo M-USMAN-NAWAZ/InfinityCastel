@@ -628,6 +628,10 @@ public partial class DynamicInfinityCastle : MonoBehaviour
             link.switchbackCollision.transform.SetParent(root.transform, false);
             link.switchbackCollision.AddComponent<MeshCollider>().sharedMesh = districtSwitchbackPrefab.GetComponent<MeshFilter>().sharedMesh;
             Vector3[] route = districtSwitchbackRoute.points;
+            CastleStairRoute collisionRoute = link.switchbackCollision.AddComponent<CastleStairRoute>();
+            collisionRoute.hasAuthoredTreads = districtSwitchbackRoute.hasAuthoredTreads;
+            collisionRoute.points = route;
+            collisionRoute.laneWidth = districtSwitchbackRoute.laneWidth;
             // Regular rebuilt treads are already solid, low steps. The old
             // rotated boxes shear under vertical fitting and can block entry.
             for (int segment = 0; !districtSwitchbackRoute.hasAuthoredTreads && segment < 3; segment++)

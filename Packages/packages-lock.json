@@ -18,8 +18,8 @@
       "hash": "81542a7e86292b5c4c21b1782c5af23b567f45ce"
     },
     "com.ivanmurzak.unity.mcp": {
-      "version": "1.5.0",
-      "depth": 1,
+      "version": "1.7.1",
+      "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.test-framework": "1.1.33",
@@ -312,7 +312,7 @@
     },
     "extensions.unity.playerprefsex": {
       "version": "2.1.5",
-      "depth": 2,
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://package.openupm.com"

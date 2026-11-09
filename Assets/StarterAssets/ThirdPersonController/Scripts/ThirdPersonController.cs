@@ -17,6 +17,9 @@ namespace StarterAssets
         public float SprintSpeed = 6f;
         [Range(0f, 0.3f)] public float RotationSmoothTime = 0.12f;
         public float SpeedChangeRate = 12f;
+        [System.NonSerialized] public bool ProceduralGroundBraking;
+        [System.NonSerialized] public float StairSpeedLimit;
+        public float BrakingDistance => speed * speed / (2 * Mathf.Max(1, braking ? brakeRate : SpeedChangeRate));
         public AudioClip LandingAudioClip;
         public AudioClip[] FootstepAudioClips;
         [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
@@ -41,6 +44,9 @@ namespace StarterAssets
         [Header("Jump Forgiveness")]
         public float CoyoteTime = 0.12f;
         public float JumpBuffer = 0.15f;
+        [System.NonSerialized] public float GroundedJumpWindup;
+        public float JumpPreparation => jumpWindupTime > 0 && GroundedJumpWindup > 0
+            ? 1f - jumpWindupTime / GroundedJumpWindup : 0;
         [Header("Castle Ultra Jump")]
         [Min(1f)] public float UltraJumpHeight = 18f;
         [Min(1f)] public float UltraJumpSpeed = 26f;
@@ -63,7 +69,11 @@ namespace StarterAssets
         private Quaternion cameraGravityFrom = Quaternion.identity;
         private float cameraTransitionElapsed;
         private float pitch, speed, verticalSpeed, groundedTime, jumpBufferTime, jumpCooldown, airborneTime;
+        private float jumpWindupTime;
         private bool jumping, initialized, alignmentReady;
+        private bool braking;
+        private float brakeRate;
+        private Vector3 brakeDirection;
 #if ENABLE_INPUT_SYSTEM
         private PlayerInput playerInput;
 #endif
@@ -158,10 +168,12 @@ namespace StarterAssets
             Physics.SyncTransforms();
             motor.Depenetrate();
             if (IsUltraJumping) verticalSpeed = Vector3.Dot(ultraVelocity, targetUp);
-            Grounded = verticalSpeed <= 0.1f && motor.CheckGround(targetUp, GroundLayers);
+            Vector3 treadDirection = StairSpeedLimit > 0 && !changingGravity ? Vector3.ProjectOnPlane(brakeDirection, targetUp).normalized : Vector3.zero;
+            Grounded = verticalSpeed <= 0.1f && motor.CheckGround(targetUp, GroundLayers, treadDirection);
             if (IsUltraJumping && Grounded) FinishUltraJump();
             groundedTime = Grounded ? CoyoteTime : Mathf.Max(0f, groundedTime - dt);
             jumpCooldown = Mathf.Max(0f, jumpCooldown - dt); jumpBufferTime = Mathf.Max(0f, jumpBufferTime - dt);
+            jumpWindupTime = GroundedJumpWindup > 0 ? Mathf.Max(0, jumpWindupTime - dt) : 0;
             Vector2 move = Vector2.ClampMagnitude(input.move, 1f);
             float magnitude = input.analogMovement ? move.magnitude : move.sqrMagnitude > 0f ? 1f : 0f;
             Vector3 viewForward = MovementForward;
@@ -178,21 +190,41 @@ namespace StarterAssets
                     IsUltraJumping = true;
                     verticalSpeed = Mathf.Sqrt(2f * acceleration * EffectiveUltraJumpHeight);
                     ultraVelocity = direction * (EffectiveUltraJumpSpeed * magnitude) + targetUp * verticalSpeed;
-                    groundedTime = jumpBufferTime = 0f; jumpCooldown = .25f;
+                    groundedTime = jumpBufferTime = jumpWindupTime = 0f; jumpCooldown = .25f;
                     Grounded = false; jumping = true; motor.ClearSupport();
                 }
             }
-            else if (input.jump) { jumpBufferTime = JumpBuffer; input.jump = false; }
+            else if (input.jump)
+            {
+                if (jumpBufferTime <= 0 && Grounded && speed < .45f && magnitude < .15f && jumpCooldown <= 0)
+                    jumpWindupTime = GroundedJumpWindup;
+                jumpBufferTime = Mathf.Max(JumpBuffer, jumpWindupTime + dt);
+                input.jump = false;
+            }
             if (Grounded) { verticalSpeed = -2f; airborneTime = 0f; jumping = false; }
             else airborneTime += dt;
-            if (!IsUltraJumping && jumpBufferTime > 0f && groundedTime > 0f && jumpCooldown <= 0f)
+            if (!IsUltraJumping && jumpBufferTime > 0f && groundedTime > 0f && jumpCooldown <= 0f && jumpWindupTime <= 0)
             {
                 verticalSpeed = Mathf.Sqrt(2f * acceleration * JumpHeight);
                 groundedTime = 0f; jumpBufferTime = 0f;
                 jumpCooldown = Mathf.Max(0.05f, JumpTimeout); Grounded = false; jumping = true;
             }
             if (!IsUltraJumping) verticalSpeed = Mathf.Max(-45f, verticalSpeed - acceleration * dt);
-            speed = Mathf.MoveTowards(speed, (IsUltraJumping ? EffectiveUltraJumpSpeed : input.sprint ? SprintSpeed : MoveSpeed) * magnitude, SpeedChangeRate * dt);
+            bool wantsBrake = ProceduralGroundBraking && Grounded && !IsUltraJumping && magnitude < .001f;
+            if (wantsBrake && !braking) brakeRate = Mathf.Max(SpeedChangeRate, speed / .32f);
+            braking = wantsBrake;
+            float requestedSpeed = (IsUltraJumping ? EffectiveUltraJumpSpeed : input.sprint ? SprintSpeed : MoveSpeed) * magnitude;
+            float speedChange = braking ? brakeRate : SpeedChangeRate;
+            if (!jumping && StairSpeedLimit > 0f && requestedSpeed > StairSpeedLimit)
+            {
+                requestedSpeed = StairSpeedLimit;
+                if (speed > requestedSpeed) speedChange = Mathf.Max(speedChange, 36f);
+            }
+            speed = Mathf.MoveTowards(speed, requestedSpeed, speedChange * dt);
+            if (direction.sqrMagnitude > .0001f) brakeDirection = direction;
+            Vector3 movementDirection = braking ? Vector3.ProjectOnPlane(brakeDirection, targetUp).normalized : direction;
+            if (braking && speed > .01f && !motor.HasBrakingSupport(movementDirection * (speed * dt + .06f), targetUp, GroundLayers))
+            { speed = 0; movementDirection = Vector3.zero; }
             if (direction.sqrMagnitude > 0.0001f)
             {
                 transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction, targetUp),
@@ -213,7 +245,7 @@ namespace StarterAssets
                 motor.Move(step, targetUp, false, dt);
                 verticalSpeed = Vector3.Dot(ultraVelocity, targetUp);
             }
-            else motor.Move((direction * speed + targetUp * verticalSpeed) * dt + supportMotion, targetUp, Grounded, dt);
+            else motor.Move((movementDirection * speed + targetUp * verticalSpeed) * dt + supportMotion, targetUp, Grounded, dt, StairSpeedLimit > 0f);
             if (motor.HitCeiling && verticalSpeed > 0f)
             {
                 if (IsUltraJumping) ultraVelocity -= targetUp * verticalSpeed;
@@ -258,7 +290,10 @@ namespace StarterAssets
         public void ResetFallVelocity()
         {
             FinishUltraJump();
+            if (jumpWindupTime > 0) jumpBufferTime = 0;
+            jumpWindupTime = 0;
             verticalSpeed = 0f; speed = 0f; jumping = false; Grounded = false; groundedTime = 0f;
+            braking = false; brakeDirection = Vector3.zero;
             alignmentReady = false;
             if (motor != null) motor.ClearSupport();
         }

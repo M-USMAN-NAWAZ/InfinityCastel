@@ -30,6 +30,7 @@ public sealed class TanjiroSword : MonoBehaviour
     private int locomotionLayer = -1;
     private int freeArmLayer = -1;
     private bool initialized;
+    private System.Action proceduralToggle;
     private StarterAssets.ThirdPersonController movement;
     private bool pendingSheathe;
     private static readonly int StrideId=Animator.StringToHash("SwordStride");
@@ -122,13 +123,34 @@ public sealed class TanjiroSword : MonoBehaviour
         idleFreeElbowAngle=Mathf.Atan2(Vector3.Dot(idleArm,transform.forward),-Vector3.Dot(idleArm,transform.up))*Mathf.Rad2Deg;
     }
 
+    // Scene-only opt-in. Original prefabs keep the existing clip-based path.
+    public void InitializeProcedural(System.Action toggle)
+    {
+        proceduralToggle = toggle;
+        animator = GetComponent<Animator>();
+        swordFilter = sword.GetComponentInChildren<MeshFilter>();
+        body.sharedMesh = drawableBodyMesh;
+        sword.gameObject.SetActive(true);
+        if (sheath != null) sheath.gameObject.SetActive(true);
+        idleSheathPosition = transform.InverseTransformPoint(sheathSocket.position);
+        idleSheathRotation = Quaternion.Inverse(transform.rotation) * sheathSocket.rotation;
+        initialized = true;
+        ResetSword();
+    }
+
+    public void ReleaseProceduralControl(bool restoreAnimator = true)
+    {
+        proceduralToggle = null; initialized = false;
+        if (restoreAnimator && isActiveAndEnabled && Application.isPlaying) Initialize();
+    }
+
     private void Update()
     {
         if (!Application.isPlaying) return;
 #if ENABLE_INPUT_SYSTEM
         if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) ToggleSword();
 #endif
-        if (initialized && layer >= 0)
+        if (initialized && layer >= 0 && proceduralToggle == null)
         {
             UpdateLocomotion(Time.deltaTime);
         }
@@ -138,7 +160,7 @@ public sealed class TanjiroSword : MonoBehaviour
     // works with the phone joystick and with the character's local gravity.
     public void UpdateLocomotion(float dt)
     {
-        if (!initialized || dt<=0) return;
+        if (!initialized || dt<=0 || proceduralToggle != null) return;
         float target=0;
         if (enableSwordLocomotion && IsDrawn && !IsBusy && movement!=null && movement.enabled && movement.Grounded)
         {
@@ -164,6 +186,11 @@ public sealed class TanjiroSword : MonoBehaviour
 
     public void ToggleSword()
     {
+        if (proceduralToggle != null)
+        {
+            if (IsBusy || !isActiveAndEnabled) return;
+            IsBusy = true; proceduralToggle(); return;
+        }
         Initialize();
         if (!initialized || layer < 0 || IsBusy || !isActiveAndEnabled || !animator.isActiveAndEnabled) return;
         IsBusy = true;
@@ -179,7 +206,7 @@ public sealed class TanjiroSword : MonoBehaviour
 
     public void ApplySheathPose()
     {
-        if (!initialized || sheathSocket == null) return;
+        if (!initialized || sheathSocket == null || proceduralToggle != null) return;
         sheathSocket.SetPositionAndRotation(transform.TransformPoint(sheathPosition),transform.rotation*sheathRotation.normalized);
         float trailing=TrailingWeight;
         if(trailing>0)
@@ -221,7 +248,7 @@ public sealed class TanjiroSword : MonoBehaviour
     private void LateUpdate() { if (Application.isPlaying) ApplySheathPose(); }
     private void OnAnimatorIK(int layerIndex)
     {
-        if (!initialized || layerIndex != layer) return;
+        if (!initialized || layerIndex != layer || proceduralToggle != null) return;
         IKCalls++;
         if (calibrating)
         {
@@ -270,6 +297,7 @@ public sealed class TanjiroSword : MonoBehaviour
         pendingSheathe=false;
         handIKWeight=0;
         if (!initialized) return;
+        if (proceduralToggle != null) { Mount(sheathSocket, stowedHiltMesh); return; }
         animator.SetFloat(StrideId,0);
         sheathPosition = idleSheathPosition; sheathRotation = idleSheathRotation; ApplySheathPose();
         Mount(sheathSocket, stowedHiltMesh);
